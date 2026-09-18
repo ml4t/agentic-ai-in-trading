@@ -5,6 +5,5 @@ __pycache__/
 .ruff_cache/
 
 # Prices are fetched at runtime, never committed.
-data/
-*.parquet
-*.csv
+data/*.parquet
+data/*.csv

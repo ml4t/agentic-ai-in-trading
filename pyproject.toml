@@ -1,0 +1,23 @@
+[project]
+name = "agentic-ai-in-trading"
+version = "0.1.0"
+description = "Materials for the Agentic AI in Trading workshop, QuantInsti ATC 2026"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ml4t-diagnostic==0.1.5",
+    "ml4t-engineer==0.1.4",
+    "lightgbm==4.6.0",
+    "pandas==2.3.3",
+    "polars==1.35.2",
+    "numpy==2.3.4",
+    "pyarrow==22.0.0",
+    "scikit-learn==1.7.2",
+    "statsmodels==0.14.6",
+    "yfinance==1.7.0",
+]
+
+[dependency-groups]
+dev = ["ruff==0.14.5"]
+
+[tool.ruff]
+line-length = 100
