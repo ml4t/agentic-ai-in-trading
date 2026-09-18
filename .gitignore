@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+.ruff_cache/
+
+# Prices are fetched at runtime, never committed.
+data/
+*.parquet
+*.csv
