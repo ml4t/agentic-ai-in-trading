@@ -64,7 +64,7 @@ elif Path.cwd().name == "notebooks":
     os.chdir("..")
 
 sys.path.insert(0, str(Path.cwd()))
-print("working directory:", Path.cwd())
+print(f"working directory: {Path.cwd().name}/, src/ found: {Path('src').is_dir()}")
 
 # %% [markdown]
 # The price panel is not shipped with this repository. It is downloaded from

@@ -78,6 +78,12 @@ exactly as the agent ran it:
 uv run python -m src.evaluate
 ```
 
+## License
+
+MIT, including the code the agent wrote. The price data is not covered: it is
+not shipped here and is downloaded from Yahoo Finance at run time, under
+whatever terms that source imposes.
+
 ## Where this continues
 
 The workshop covers one iteration of one stage of a research workflow. The
