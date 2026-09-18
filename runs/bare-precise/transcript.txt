@@ -1,0 +1,2126 @@
+==============================================================================
+SESSION INIT
+  model: claude-sonnet-5
+  cwd: /work
+  permissionMode: bypassPermissions
+  apiKeySource: none
+  tools: ['Task', 'Bash', 'CronCreate', 'CronDelete', 'CronList', 'Edit', 'EnterWorktree', 'ExitWorktree', 'ListAgents', 'NotebookEdit', 'Read', 'RemoteTrigger', 'ReportFindings', 'ScheduleWakeup', 'SendMessage', 'Skill', 'TaskOutput', 'TaskStop', 'ToolSearch', 'WebFetch', 'WebSearch', 'Workflow', 'Write']
+  slash_commands: ['deep-research', 'dataviz', 'update-config', 'verify', 'debug', 'code-review', 'simplify', 'batch', 'fewer-permission-prompts', 'doctor', 'loop', 'schedule', 'claude-api', 'workflow-authoring', 'run', 'run-skill-generator', 'agents', 'auto-mode-setup', 'autocompact', 'clear', 'color', 'compact', 'config', 'output-style', 'context', 'effort', 'fast', 'heapdump', 'init', 'mcp', 'model', '__remote-workflow', 'workflow-launch-exec', 'reload-plugins', 'reload-skills', 'rename', 'security-review', 'usage', 'insights', 'recap', 'goal', 'list-agents', 'team-onboarding']
+==============================================================================
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+I'll start by exploring the repo structure and understanding the data files and library APIs involved.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find . -maxdepth 3 -not -path '*/.git*' | sort",
+  "description": "List repo files up to 3 levels deep"
+}
+
+--- USER ---
+[tool_result]
+.
+./.venv
+./.venv/.lock
+./.venv/CACHEDIR.TAG
+./.venv/bin
+./.venv/bin/activate
+./.venv/bin/activate.bat
+./.venv/bin/activate.csh
+./.venv/bin/activate.fish
+./.venv/bin/activate.nu
+./.venv/bin/activate.ps1
+./.venv/bin/activate_this.py
+./.venv/bin/cffi-gen-src
+./.venv/bin/curl-cffi
+./.venv/bin/deactivate.bat
+./.venv/bin/ecal
+./.venv/bin/f2py
+./.venv/bin/idna
+./.venv/bin/normalizer
+./.venv/bin/numba
+./.venv/bin/numpy-config
+./.venv/bin/pwiz
+./.venv/bin/pwmigrate
+./.venv/bin/pydoc.bat
+./.venv/bin/python
+./.venv/bin/python3
+./.venv/bin/python3.12
+./.venv/bin/tqdm
+./.venv/bin/websockets
+./.venv/lib
+./.venv/lib/python3.12
+./.venv/lib64
+./.venv/pyvenv.cfg
+./README.md
+./data
+./data/README.md
+./data/eligibility.csv
+./data/prices.parquet
+./pyproject.toml
+./scripts
+./scripts/fetch_prices.py
+./uv.lock
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/data/README.md"
+}
+
+--- USER ---
+[tool_result]
+1	# Data
+2	
+3	Nothing in this directory is committed. `scripts/fetch_prices.py` downloads the
+4	prices from Yahoo Finance and writes both files below.
+5	
+6	## `prices.parquet`
+7	
+8	Daily OHLCV for 25 liquid US-listed ETFs, 2007-01-01 to 2025-12-31, adjusted for
+9	splits and dividends. Long format, one row per (symbol, session):
+10	
+11	| Column | Type | Meaning |
+12	|---|---|---|
+13	| `timestamp` | datetime64, tz-naive | Session date |
+14	| `open`, `high`, `low`, `close` | float64 | Adjusted prices |
+15	| `volume` | float64 | Shares traded |
+16	| `symbol` | str | Ticker |
+17	
+18	Coverage is not uniform. SPY, QQQ and the sector SPDRs trade across the whole
+19	window; HYG starts in April 2007.
+20	
+21	The 25 symbols were chosen in 2026, from ETFs that are liquid today. Which
+22	tickers are on the list at all therefore reflects hindsight.
+23	
+24	## `eligibility.csv`
+25	
+26	Point-in-time membership, one row per (symbol, year) the symbol was eligible
+27	for: `symbol, eligible_year`.
+28	
+29	A symbol is eligible for calendar year Y when, over year Y-1, its average daily
+30	dollar volume was at least $10M across at least 200 sessions. The threshold is
+31	not inflation-adjusted. A symbol absent from a year has no row for that year.
+32	
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/README.md"
+}
+
+--- USER ---
+[tool_result]
+1	# Agentic AI in Trading
+2	
+3	Materials for the opening workshop of QuantInsti's Algorithmic Trading
+4	Conference 2026, Thursday 24 September.
+5	
+6	**Status: under construction.** The notebook and the run artifacts land here
+7	once the runs behind them are captured and checked.
+8	
+9	## What is here now
+10	
+11	A price panel and nothing built on top of it.
+12	
+13	```bash
+14	uv sync                              # pinned dependencies, Python 3.12
+15	uv run python scripts/fetch_prices.py
+16	```
+17	
+18	The fetch downloads daily OHLCV for 25 liquid US-listed ETFs from Yahoo
+19	Finance, 2007-01-01 to 2025-12-31, and writes `data/prices.parquet` and
+20	`data/eligibility.csv`. Both are gitignored: no price data ships with this
+21	repository. `data/README.md` describes the two files.
+22	
+23	## What will be here
+24	
+25	- `notebooks/` - one notebook, opens in Colab, runs start to finish in a
+26	  browser. It fetches its own price data, so there is nothing to install and no
+27	  API key of any kind.
+28	- `briefs/` - the two specifications handed to the coding agent in the session,
+29	  exactly as given.
+30	- `runs/` - what the agent did with each one: the transcript, the code it wrote,
+31	  and the results.
+32	- `CHECKLIST.md` - what to check before trusting a research component an agent
+33	  wrote for you.
+34	
+35	## Requirements
+36	
+37	A browser and a Google account for the notebook. For a local checkout, Python
+38	3.12 and [uv](https://docs.astral.sh/uv/).
+39	
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/pyproject.toml"
+}
+
+--- USER ---
+[tool_result]
+1	[project]
+2	name = "agentic-ai-in-trading"
+3	version = "0.1.0"
+4	description = "Materials for the Agentic AI in Trading workshop, QuantInsti ATC 2026"
+5	requires-python = ">=3.12,<3.13"
+6	dependencies = [
+7	    "ml4t-diagnostic==0.1.5",
+8	    "ml4t-engineer==0.1.4",
+9	    "lightgbm==4.6.0",
+10	    "pandas==2.3.3",
+11	    "polars==1.35.2",
+12	    "numpy==2.3.4",
+13	    "pyarrow==22.0.0",
+14	    "scikit-learn==1.7.2",
+15	    "statsmodels==0.14.6",
+16	    "yfinance==1.7.0",
+17	]
+18	
+19	[dependency-groups]
+20	dev = ["ruff==0.14.5"]
+21	
+22	[tool.ruff]
+23	line-length = 100
+24	
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate 2>/dev/null; python -c \"import ml4t, os; print(ml4t.__file__)\"",
+  "description": "Find ml4t package location"
+}
+
+--- USER ---
+[tool_result]
+None
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate; python -c \"\nimport ml4t\nprint(ml4t.__file__)\n\"\nfind / -maxdepth 6 -iname \"ml4t*\" -not -path \"*/.git/*\" 2>/dev/null",
+  "description": "Locate ml4t package files"
+}
+
+--- USER ---
+[tool_result]
+None
+/work/.venv/lib/python3.12/site-packages/ml4t_specs-0.1.4.dist-info
+/work/.venv/lib/python3.12/site-packages/ml4t
+/work/.venv/lib/python3.12/site-packages/ml4t_diagnostic-0.1.5.dist-info
+/work/.venv/lib/python3.12/site-packages/ml4t_engineer-0.1.4.dist-info
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find /work/.venv/lib/python3.12/site-packages/ml4t -maxdepth 4 -not -path \"*__pycache__*\" | sort",
+  "description": "List ml4t package structure"
+}
+
+--- USER ---
+[tool_result]
+<persisted-output>
+Output too large (44.3KB). Full output saved to: /home/agent/.claude/projects/-work/e0294770-f449-4735-8975-26e73174796b/tool-results/bw7brx0sv.txt
+
+Preview (first 2KB):
+/work/.venv/lib/python3.12/site-packages/ml4t
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/api.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/adapter.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/polars_backend.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/cache.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/decorators.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/smart_cache.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/README.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/barrier_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/base.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/event_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/feature_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/multi_signal_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/portfolio_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/report_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/sharpe_config.py
+...
+</persisted-output>
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+There are AGENTS.md docs in the package — let me check those and the specific modules I'll use.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find /work/.venv/lib/python3.12/site-packages/ml4t -iname \"AGENTS.md\" | sort",
+  "description": "Find all AGENTS.md docs in ml4t package"
+}
+
+--- USER ---
+[tool_result]
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/factor/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/stats/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/trade_shap/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/integration/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/metrics/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/reporting/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/results/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/selection/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/signal/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/visualization/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/visualization/backtest/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/visualization/factor/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/artifacts/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/bars/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/config/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/core/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/core/calendars/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/discovery/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/math/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/microstructure/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/ml/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/momentum/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/price_transform/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/statistics/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/trend/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/utils/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/volatility/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/volume/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/labeling/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/logging/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/relationships/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/store/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/engineer/utils/AGENTS.md
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/.venv/lib/python3.12/site-packages/ml4t/engineer/features/momentum/AGENTS.md"
+}
+
+--- USER ---
+[tool_result]
+1	# momentum/ - 31 Momentum Indicators
+2	
+3	All TA-Lib compatible unless noted. Returns DataFrame with indicator column(s).
+4	
+5	## Oscillators (0-100 or bounded range)
+6	
+7	### rsi(data, period=14, price_col="close") -> DataFrame
+8	Relative Strength Index. Range: 0-100. Overbought >70, oversold <30.
+9	
+10	### stoch(data, fastk=5, slowk=3, slowd=3) -> DataFrame
+11	Stochastic Oscillator. Returns: stoch_k, stoch_d columns. Range: 0-100.
+12	
+13	### stochf(data, fastk=5, fastd=3) -> DataFrame
+14	Fast Stochastic. Returns: fastk, fastd columns. Range: 0-100.
+15	
+16	### stochrsi(data, period=14, fastk=5, fastd=3) -> DataFrame
+17	Stochastic RSI. Returns: stochrsi_k, stochrsi_d. Range: 0-100.
+18	
+19	### willr(data, period=14) -> DataFrame
+20	Williams %R. Range: -100 to 0. Overbought >-20, oversold <-80.
+21	
+22	### mfi(data, period=14) -> DataFrame
+23	Money Flow Index. Volume-weighted RSI. Range: 0-100.
+24	
+25	### cci(data, period=20) -> DataFrame
+26	Commodity Channel Index. Typically -100 to +100, unbounded.
+27	
+28	### cmo(data, period=14) -> DataFrame
+29	Chande Momentum Oscillator. Range: -100 to +100.
+30	
+31	### ultosc(data, period1=7, period2=14, period3=28) -> DataFrame
+32	Ultimate Oscillator. Multi-timeframe. Range: 0-100.
+33	
+34	### bop(data) -> DataFrame
+35	Balance of Power. Range: -1 to +1.
+36	
+37	### imi(data, period=14) -> DataFrame
+38	Intraday Momentum Index. Range: 0-100.
+39	
+40	## Trend-Following
+41	
+42	### adx(data, period=14) -> DataFrame
+43	Average Directional Index. Trend strength 0-100. >25 trending.
+44	
+45	### adxr(data, period=14) -> DataFrame
+46	ADX Rating. Smoothed ADX.
+47	
+48	### aroon(data, period=25) -> DataFrame
+49	Aroon Oscillator. Returns: aroon_up, aroon_down, aroon_osc. Range: 0-100.
+50	
+51	### plus_dm(data, period=14) -> DataFrame
+52	Plus Directional Movement.
+53	
+54	### minus_dm(data, period=14) -> DataFrame
+55	Minus Directional Movement.
+56	
+57	### directional(data, period=14) -> DataFrame
+58	Directional indicators. Returns: plus_di, minus_di.
+59	
+60	## MACD Family
+61	
+62	### macd(data, fast=12, slow=26, signal=9) -> DataFrame
+63	MACD. Returns: macd, macd_signal, macd_hist columns.
+64	
+65	### macdfix(data, signal=9) -> DataFrame
+66	MACD with fixed 12/26. Returns: macd, macd_signal, macd_hist.
+67	
+68	### apo(data, fast=12, slow=26, matype=0) -> DataFrame
+69	Absolute Price Oscillator.
+70	
+71	### ppo(data, fast=12, slow=26, matype=0) -> DataFrame
+72	Percentage Price Oscillator.
+73	
+74	## Rate of Change
+75	
+76	### mom(data, period=10) -> DataFrame
+77	Momentum. Simple price difference.
+78	
+79	### roc(data, period=10) -> DataFrame
+80	Rate of Change (percentage).
+81	
+82	### rocp(data, period=10) -> DataFrame
+83	ROC Percentage.
+84	
+85	### rocr(data, period=10) -> DataFrame
+86	ROC Ratio.
+87	
+88	### rocr100(data, period=10) -> DataFrame
+89	ROC Ratio * 100.
+90	
+91	### trix(data, period=30) -> DataFrame
+92	Triple Exponential Average ROC.
+93	
+94	## Special
+95	
+96	### sar(data, acceleration=0.02, maximum=0.2) -> DataFrame
+97	Parabolic SAR. Trend reversal indicator.
+98	
+99	## Common Parameters
+100	
+101	- `data`: pl.DataFrame with OHLCV columns
+102	- `period`: Lookback window (int)
+103	- `price_col`: Column to use (default "close")
+104	- All return DataFrame with original data + indicator column(s)
+105	
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/AGENTS.md"
+}
+
+--- USER ---
+[tool_result]
+1	# splitters/ - Time-Series Cross-Validation
+2	
+3	Leakage-aware cross-validation for financial time series.
+4	
+5	## Main Components
+6	
+7	- `WalkForwardCV` for rolling or expanding validation with optional held-out test periods
+8	- `CombinatorialCV` for CPCV with purging, embargo, and path distributions
+9	- `TradingCalendar` and `CalendarConfig` for session-aware splitting
+10	- `WalkForwardConfig` and `CombinatorialConfig` for reproducible config-first workflows
+11	- `save_folds`, `load_folds`, `verify_folds` for persistence and reruns
+12	
+13	## Notes
+14	
+15	- `WalkForwardCV` supports held-out test windows via `test_period` or `test_start` / `test_end`
+16	- `CombinatorialCV` is the path used by `ValidatedCrossValidation`
+17	- The public guide is [../../../../docs/user-guide/cv-configuration.md](../../../../docs/user-guide/cv-configuration.md)
+18	
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/metrics/AGENTS.md"
+}
+
+--- USER ---
+[tool_result]
+1	# metrics/ - Feature, Signal, And Risk Metrics
+2	
+3	Feature-level and signal-level metric functions used by diagnostics, selection, and reporting workflows.
+4	
+5	## Main Modules
+6	
+7	- `ic.py` - IC computation primitives
+8	- `ic_inference.py` - HAC-adjusted IC statistics and summary helpers
+9	- `conditional.py` - conditional IC analysis
+10	- `importance_classical.py`, `importance_mda.py`, `importance_shap.py` - importance methods
+11	- `importance_analysis.py` - multi-method comparison
+12	- `interactions.py` - H-statistic and SHAP interaction workflows
+13	- `feature_outcome.py` - combined feature-outcome analysis
+14	- `monotonicity.py` and `risk_adjusted.py` - ranking and portfolio-style metrics
+15	
+16	## Common Entry Points
+17	
+18	- `cross_sectional_ic_series`
+19	- `cross_sectional_ic`
+20	- `pooled_ic`
+21	- `compute_ic_hac_stats`
+22	- `analyze_ml_importance`
+23	- `compute_shap_importance`
+24	- `compute_h_statistic`
+25	- `analyze_feature_outcome`
+26	
+
+--- ASSISTANT ---
+Let me look at the actual function signatures for the key APIs I'll use: `rsi`, `WalkForwardCV`, `cross_sectional_ic_series`, and `compute_ic_hac_stats`.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.engineer.features.momentum.rsi import rsi\nprint(\"=== rsi ===\")\nprint(inspect.signature(rsi))\nprint(inspect.getsource(rsi))\nEOF",
+  "description": "Inspect rsi function signature and source"
+}
+
+--- USER ---
+[tool_result]
+=== rsi ===
+(close: numpy.ndarray[tuple[typing.Any, ...], numpy.dtype[numpy.float64]] | polars.series.series.Series | str, period: int = 14) -> numpy.ndarray[tuple[typing.Any, ...], numpy.dtype[numpy.float64]] | polars.expr.expr.Expr
+@feature(
+    name="rsi",
+    category="momentum",
+    description="Relative Strength Index - momentum oscillator measuring speed and change of price movements",
+    normalized=True,
+    value_range=(0.0, 100.0),
+    formula="RSI = 100 - (100 / (1 + RS)) where RS = Average Gain / Average Loss",
+    ta_lib_compatible=True,
+    input_type="close",
+    references=["Wilder, J. W. (1978). New Concepts in Technical Trading Systems"],
+    tags=["oscillator", "momentum", "overbought", "oversold"],
+)
+def rsi(
+    close: npt.NDArray[np.float64] | pl.Series | str,
+    period: int = 14,
+) -> npt.NDArray[np.float64] | pl.Expr:
+    """
+    Relative Strength Index with Wilder's smoothing.
+
+    RSI is a momentum oscillator that measures the speed and change of price
+    movements. Values above 70 typically indicate overbought conditions,
+    while close below 30 indicate oversold conditions.
+
+    Parameters
+    ----------
+    close : array-like or column name
+        Price data (typically closing close)
+    period : int, default 14
+        Number of periods for RSI calculation
+    implementation : str, default 'auto'
+        Implementation to use: 'auto', 'numba', or 'polars'
+
+    Returns
+    -------
+    array or Polars expression
+        RSI close on 0-100 scale
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> close = np.array([44, 44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.85, 47.15, 47.72])
+    >>> rsi_14 = rsi(close, period=5)  # Using 5 for demo
+    >>> rsi_14[5:]  # First 5 close are NaN
+    array([57.97, 62.93, 70.46, 74.53, 70.61])
+
+    Notes
+    -----
+    - Uses Wilder's smoothing (not simple EMA) for exact TA-Lib compatibility
+    - RSI = 100 - (100 / (1 + RS)) where RS = Average Gain / Average Loss
+    - First average uses simple mean, subsequent close use Wilder's smoothing
+    - Standard period is 14, commonly used close are 7, 14, 21
+    - A missing observation ends the recursion: the series is split on NaN and
+      each gap-free run is seeded separately, so the ``period`` observations
+      after a gap are NaN and the oscillator then resumes
+    """
+    # Validate parameters
+    if period < 1:
+        raise InvalidParameterError(f"period must be >= 1, got {period}")
+
+    if isinstance(close, str):
+        return rsi_polars(close, period)
+
+    if isinstance(close, pl.Series):
+        close = close.cast(pl.Float64).to_numpy()
+    return rsi_numba(np.asarray(close, dtype=np.float64), period)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nprint(\"=== WalkForwardCV ===\")\nprint(inspect.signature(WalkForwardCV.__init__))\nprint(inspect.getsource(WalkForwardCV.__init__))\nEOF",
+  "description": "Inspect WalkForwardCV constructor"
+}
+
+--- USER ---
+[tool_result]
+=== WalkForwardCV ===
+(self, config: 'WalkForwardConfig | None' = None, *, n_splits: 'int' = 5, test_size: 'float | None' = None, train_size: 'float | None' = None, gap: 'int' = 0, label_horizon: 'int | pd.Timedelta' = 0, embargo_size: 'int | pd.Timedelta | None' = None, embargo_pct: 'float | None' = None, expanding: 'bool' = True, consecutive: 'bool' = False, calendar: 'str | CalendarConfig | TradingCalendar | None' = None, align_to_sessions: 'bool' = False, session_col: 'str' = 'session_date', timestamp_col: 'str | None' = None, isolate_groups: 'bool' = False, test_period: 'int | str | None' = None, test_start: 'date | str | None' = None, test_end: 'date | str | None' = None, fold_direction: "Literal['forward', 'backward']" = 'forward') -> 'None'
+    def __init__(
+        self,
+        config: WalkForwardConfig | None = None,
+        *,
+        n_splits: int = 5,
+        test_size: float | None = None,
+        train_size: float | None = None,
+        gap: int = 0,
+        label_horizon: int | pd.Timedelta = 0,
+        embargo_size: int | pd.Timedelta | None = None,
+        embargo_pct: float | None = None,
+        expanding: bool = True,
+        consecutive: bool = False,
+        calendar: str | CalendarConfig | TradingCalendar | None = None,
+        align_to_sessions: bool = False,
+        session_col: str = "session_date",
+        timestamp_col: str | None = None,
+        isolate_groups: bool = False,
+        # New parameters for held-out test
+        test_period: int | str | None = None,
+        test_start: date | str | None = None,
+        test_end: date | str | None = None,
+        fold_direction: Literal["forward", "backward"] = "forward",
+    ) -> None:
+        """Initialize WalkForwardCV.
+
+        This splitter uses a config-first architecture. You can either:
+        1. Pass a config object: WalkForwardCV(config=my_config)
+        2. Pass individual parameters: WalkForwardCV(n_splits=5, test_size=100)
+
+        Parameters are automatically converted to a config object internally,
+        ensuring a single source of truth for all validation and logic.
+
+        Examples
+        --------
+        >>> # Approach 1: Direct parameters (convenient)
+        >>> cv = WalkForwardCV(n_splits=5, test_size=100)
+        >>>
+        >>> # Approach 2: Config object (for serialization/reproducibility)
+        >>> from ml4t.diagnostic.splitters.config import WalkForwardConfig
+        >>> config = WalkForwardConfig(n_splits=5, test_size=100)
+        >>> cv = WalkForwardCV(config=config)
+        >>>
+        >>> # Approach 3: With held-out test period
+        >>> cv = WalkForwardCV(
+        ...     n_splits=5,
+        ...     test_period="52D",      # Reserve most recent 52 days for final evaluation
+        ...     test_size=20,           # 20-day validation folds
+        ...     train_size=252,         # 1-year training windows
+        ...     label_horizon=5,        # 5 trading days gap
+        ...     calendar="NYSE",        # NYSE trading calendar
+        ...     fold_direction="backward",  # Folds step backward from test
+        ... )
+        >>>
+        >>> # Validation folds (step backward from held-out test)
+        >>> for train_idx, val_idx in cv.split(X):
+        ...     model.fit(X.iloc[train_idx], y.iloc[train_idx])
+        >>> # Final evaluation on held-out test
+        >>> test_score = model.score(X.iloc[cv.test_indices_], y.iloc[cv.test_indices_])
+        """
+        # Config-first: either use provided config or create from params
+        if config is not None:
+            # Explicit config provided
+            # Verify no conflicting parameters were passed
+            non_default_params = []
+            if n_splits != 5:
+                non_default_params.append("n_splits")
+            if test_size is not None:
+                non_default_params.append("test_size")
+            if train_size is not None:
+                non_default_params.append("train_size")
+            if gap != 0:
+                non_default_params.appe
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nprint(inspect.signature(WalkForwardCV.split))\nEOF\nfind /work/.venv/lib/python3.12/site-packages/ml4t -iname \"*.md\" | xargs grep -l \"isolate_groups\\|WalkForwardCV\" 2>/dev/null",
+  "description": "Inspect split method and find related docs"
+}
+
+--- USER ---
+[tool_result]
+(self, X: 'pl.DataFrame | pd.DataFrame | NDArray[Any]', y: 'pl.Series | pd.Series | NDArray[Any] | None' = None, groups: 'pl.Series | pd.Series | NDArray[Any] | None' = None) -> 'Generator[tuple[NDArray[np.intp], NDArray[np.intp]], None, None]'
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/AGENTS.md
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find / -iname \"cv-configuration.md\" 2>/dev/null",
+  "description": "Find the cv-configuration user guide doc"
+}
+
+--- USER ---
+[tool_result]
+(Bash completed with no output)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nsrc = inspect.getsource(WalkForwardCV.split)\nprint(src)\nEOF",
+  "description": "Print split method source"
+}
+
+--- USER ---
+[tool_result]
+    def split(
+        self,
+        X: pl.DataFrame | pd.DataFrame | NDArray[Any],
+        y: pl.Series | pd.Series | NDArray[Any] | None = None,
+        groups: pl.Series | pd.Series | NDArray[Any] | None = None,
+    ) -> Generator[tuple[NDArray[np.intp], NDArray[np.intp]], None, None]:
+        """Generate train/validation indices for walk-forward splits.
+
+        When a held-out test period is configured (test_period or test_start),
+        this method yields train/validation splits for cross-validation, and
+        the held-out test indices are accessible via test_indices_ property.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+
+        y : array-like of shape (n_samples,), optional
+            Target variable.
+
+        groups : array-like of shape (n_samples,), optional
+            Group labels for samples.
+
+        Yields:
+        ------
+        train : ndarray
+            Training set indices for this split.
+
+        val : ndarray
+            Validation set indices for this split (or test if no held-out test).
+
+        Notes
+        -----
+        When using held-out test mode with fold_direction="backward":
+
+        ```
+        [train1][val1][train2][val2][train3][val3] | [HELD-OUT TEST]
+                ←     ←     ←     ←     ←     ←     test_start
+        ```
+
+        Validation folds are constructed backward from the test boundary, then
+        yielded in chronological order. This keeps all validation before the
+        held-out test while fold numbers increase with time.
+        """
+        # Validate inputs and get sample count
+        n_samples = self._validate_data(X, y, groups)
+
+        # Validate session alignment if enabled
+        self._validate_session_alignment(X, self.align_to_sessions, self.session_col)
+
+        # Extract timestamps for held-out test computation
+        timestamps = self._extract_timestamps(X, self.timestamp_col)
+
+        # Initialize fold summary tracking
+        self._fold_records: list[dict[str, Any]] = []
+        self._split_timestamps = timestamps
+
+        # Select the appropriate splitting generator
+        if self._has_held_out_test():
+            test_start_idx, test_end_idx = self._compute_test_period(n_samples, timestamps)
+            self._test_start_idx = test_start_idx
+            self._test_end_idx = test_end_idx
+            self._test_indices = np.arange(test_start_idx, test_end_idx, dtype=np.intp)
+
+            if self.fold_direction == "backward":
+                inner = self._split_backward(X, y, groups, n_samples, test_start_idx, timestamps)
+            else:
+                inner = self._split_forward_with_test(
+                    X, y, groups, n_samples, test_start_idx, timestamps
+                )
+        else:
+            self._test_indices = None
+            self._test_start_idx = None
+            self._test_end_idx = None
+
+            has_timestamps = self._extract_timestamps(X, self.timestamp_col) is not None
+            if self._should_use_calendar_splitting() and has_timestamps:
+                if self.align_to_sessions:
+                    warnings.warn(
+                        "align_to_sessions=True is deprecated when calendar is active. "
+                        "Calendar-first splitting subsumes session alignment.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                inner = self._split_by_calendar(X, y, groups, n_samples)
+            elif self.align_to_sessions:
+                inner = self._split_by_sessions(
+                    cast(pl.DataFrame | pd.DataFrame, X), y, groups, n_samples
+                )
+            else:
+                inner = self._split_by_samples(X, y, groups, n_samples)
+
+        # Yield from inner generator while recording fold metadata
+        for fold_i, (train_idx, val_idx) in enumerate(inner):
+            self._record_fold(fold_i, train_idx, val_idx, timestamps)
+            yield train_
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nfor name in [\"_split_by_sessions\", \"_split_by_samples\", \"_validate_data\", \"_extract_timestamps\", \"_validate_session_alignment\"]:\n    print(f\"=== {name} ===\")\n    print(inspect.getsource(getattr(WalkForwardCV, name)))\n    print()\nEOF",
+  "description": "Inspect helper methods for session-based splitting"
+}
+
+--- USER ---
+[tool_result]
+=== _split_by_sessions ===
+    def _split_by_sessions(
+        self,
+        X: pl.DataFrame | pd.DataFrame,
+        _y: pl.Series | pd.Series | NDArray[Any] | None,
+        groups: pl.Series | pd.Series | NDArray[Any] | None,
+        n_samples: int,
+    ) -> Generator[tuple[NDArray[np.intp], NDArray[np.intp]], None, None]:
+        """Generate splits using session boundaries (session-aware)."""
+        ordered_sessions, session_to_indices = self._session_to_indices(X, self.session_col)
+        n_sessions = len(ordered_sessions)
+
+        # Extract timestamps if available (for purging/embargo)
+        timestamps = self._extract_timestamps(X, self.timestamp_col)
+
+        # Calculate test size in sessions
+        if self.test_size is None:
+            test_size_sessions = n_sessions // (self.n_splits + 1)
+        elif isinstance(self.test_size, int):
+            # Integer test_size: interpret as number of sessions
+            test_size_sessions = self.test_size
+        elif isinstance(self.test_size, float):
+            # Float test_size: proportion of sessions
+            test_size_sessions = int(n_sessions * self.test_size)
+        else:
+            # Time-based test_size not supported with sessions
+            raise ValueError(
+                f"align_to_sessions=True does not support time-based test_size. "
+                f"Use integer (number of sessions) or float (proportion). Got: {self.test_size}"
+            )
+
+        # Calculate train size in sessions if specified
+        if self.train_size is not None:
+            if isinstance(self.train_size, int):
+                train_size_sessions = self.train_size
+            elif isinstance(self.train_size, float):
+                train_size_sessions = int(n_sessions * self.train_size)
+            else:
+                raise ValueError(
+                    f"align_to_sessions=True does not support time-based train_size. "
+                    f"Use integer (number of sessions) or float (proportion). Got: {self.train_size}"
+                )
+        else:
+            train_size_sessions = None
+
+        # Calculate split points in session space
+        if self.consecutive:
+            step_size_sessions = test_size_sessions
+
+            if train_size_sessions is not None and not self.expanding:
+                first_test_start_session = train_size_sessions
+            elif self.expanding:
+                first_test_start_session = (
+                    train_size_sessions if train_size_sessions is not None else test_size_sessions
+                )
+            else:
+                first_test_start_session = test_size_sessions
+
+            total_required_sessions = first_test_start_session + self.n_splits * test_size_sessions
+            if total_required_sessions > n_sessions:
+                raise ValueError(
+                    f"Insufficient sessions for consecutive={self.consecutive}: "
+                    f"need {total_required_sessions:,} sessions (first_test at {first_test_start_session:,} "
+                    f"+ {self.n_splits} × {test_size_sessions:,}), but only have {n_sessions:,}"
+                )
+        else:
+            available_for_splits_sessions = n_sessions - test_size_sessions
+            step_size_sessions = available_for_splits_sessions // self.n_splits
+            first_test_start_session = test_size_sessions
+
+        # Generate splits by mapping session ranges to row indices
+        for i in range(self.n_splits):
+            # Calculate test session range
+            test_start_session = first_test_start_session + i * step_size_sessions
+            test_end_session = min(test_start_session + test_size_sessions, n_sessions)
+
+            if i == self.n_splits - 1 and self.test_size is None:
+                test_end_session = n_sessions
+
+            # Calculate train session range
+            if self.expanding:
+                train_start_session = 0
+            else:
+                if train_size_sessions is not None:
+                    train_start_sessio
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.metrics import cross_sectional_ic_series, compute_ic_hac_stats\nprint(\"=== cross_sectional_ic_series ===\")\nprint(inspect.signature(cross_sectional_ic_series))\nprint(inspect.getdoc(cross_sectional_ic_series))\nprint()\nprint(\"=== compute_ic_hac_stats ===\")\nprint(inspect.signature(compute_ic_hac_stats))\nprint(inspect.getdoc(compute_ic_hac_stats))\nEOF",
+  "description": "Inspect IC metric function signatures and docs"
+}
+
+--- USER ---
+[tool_result]
+=== cross_sectional_ic_series ===
+(predictions: polars.dataframe.frame.DataFrame | pandas.core.frame.DataFrame, returns: polars.dataframe.frame.DataFrame | pandas.core.frame.DataFrame, pred_col: str = 'prediction', ret_col: str = 'forward_return', date_col: str = 'date', entity_col: str | list[str] | None = None, method: str = 'spearman', min_obs: int = 10) -> polars.dataframe.frame.DataFrame | pandas.core.frame.DataFrame
+Compute a per-date cross-sectional IC time series.
+
+This function computes the Information Coefficient for each time period
+(typically daily), enabling temporal analysis of prediction quality.
+Parameters
+----------
+predictions : Union[pl.DataFrame, pd.DataFrame]
+    DataFrame with predictions, indexed or with date column
+returns : Union[pl.DataFrame, pd.DataFrame]
+    DataFrame with forward returns, matching predictions structure
+pred_col : str, default "prediction"
+    Column name for predictions/features
+ret_col : str, default "forward_return"
+    Column name for forward returns
+date_col : str, default "date"
+    Column name for dates (for grouping by period)
+entity_col : str or list[str] or None, default None
+    Entity column(s) for panel data (e.g., "symbol" or ["symbol"]).
+    When provided, join includes entity columns to avoid Cartesian
+    products. Required for cross-sectional data with multiple
+    entities per date.
+method : str, default "spearman"
+    Correlation method: "spearman" or "pearson"
+min_obs : int, default 10
+    Minimum observations per period for valid IC calculation
+
+Returns
+-------
+Union[pl.DataFrame, pd.DataFrame]
+    Time series of IC values with columns: [date_col, 'ic', 'n_obs'].
+    A date whose IC is undefined - fewer than ``min_obs`` valid
+    observations, or all predictions or all returns tied so the
+    correlation denominator is zero - carries a null `ic`, never a NaN.
+
+Examples
+--------
+>>> # Panel data with multiple symbols per date
+>>> pred_df = pl.DataFrame({
+...     "date": ["2024-01-01"] * 4 + ["2024-01-02"] * 4,
+...     "symbol": ["SPY", "QQQ", "IWM", "DIA"] * 2,
+...     "prediction": np.random.randn(8),
+... })
+>>> ret_df = pl.DataFrame({
+...     "date": ["2024-01-01"] * 4 + ["2024-01-02"] * 4,
+...     "symbol": ["SPY", "QQQ", "IWM", "DIA"] * 2,
+...     "forward_return": np.random.randn(8) * 0.02,
+... })
+>>> ic_series = cross_sectional_ic_series(pred_df, ret_df, entity_col="symbol")
+
+=== compute_ic_hac_stats ===
+(ic_series: Union[polars.dataframe.frame.DataFrame, pandas.core.frame.DataFrame, ForwardRef('NDArray[Any]')], ic_col: str = 'ic', maxlags: int | None = None, label_horizon: int | None = None, kernel: str = 'bartlett', use_correction: bool = True, allow_naive_fallback: bool = False) -> dict[str, float | int | bool]
+Compute HAC-adjusted significance statistics for IC time series.
+
+Uses Newey-West HAC (Heteroskedasticity and Autocorrelation Consistent)
+standard errors to account for autocorrelation in IC time series. This
+provides robust t-statistics and p-values when IC exhibits serial correlation.
+
+The Newey-West estimator accounts for:
+1. Heteroskedasticity: Non-constant variance in IC over time
+2. Autocorrelation: Serial correlation in IC values
+3. Lag selection: Automatic selection of optimal lag window
+
+Parameters
+----------
+ic_series : Union[pl.DataFrame, pd.DataFrame, np.ndarray]
+    Time series of IC values (from cross_sectional_ic_series)
+ic_col : str, default "ic"
+    Column name for IC values (if DataFrame)
+maxlags : int | None, default None
+    Maximum lag for HAC adjustment. If None, uses Newey-West formula:
+    maxlags = floor(4 * (T/100)^(2/9))
+    where T is the sample size. For overlapping forward-return labels,
+    pass ``label_horizon`` so the lag is at least ``label_horizon - 1``.
+label_horizon : int | None, default None
+    Forward-return horizon used to build the IC series. If provided and
+    ``maxlags`` is None, the HAC lag is
+    ``max(label_horizon - 1, Newey-West auto)`` capped at ``T // 2``.
+    Pass the actual horizon when forwar
+... [truncated]
+
+--- ASSISTANT ---
+Now let's inspect the data files themselves.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport polars as pl\nprices = pl.read_parquet(\"data/prices.parquet\")\nprint(prices.shape)\nprint(prices.schema)\nprint(prices.head(3))\nprint(prices[\"symbol\"].unique().sort().to_list())\nprint(prices[\"timestamp\"].min(), prices[\"timestamp\"].max())\n\nelig = pl.read_csv(\"data/eligibility.csv\")\nprint(elig.shape)\nprint(elig.schema)\nprint(elig.head(5))\nprint(elig[\"symbol\"].n_unique(), elig[\"eligible_year\"].min(), elig[\"eligible_year\"].max())\nEOF",
+  "description": "Inspect prices and eligibility data"
+}
+
+--- USER ---
+[tool_result]
+(119408, 7)
+Schema({'timestamp': Datetime(time_unit='ns', time_zone=None), 'open': Float64, 'high': Float64, 'low': Float64, 'close': Float64, 'volume': Float64, 'symbol': String})
+shape: (3, 7)
+┌─────────────────────┬───────────┬───────────┬───────────┬───────────┬───────────┬────────┐
+│ timestamp           ┆ open      ┆ high      ┆ low       ┆ close     ┆ volume    ┆ symbol │
+│ ---                 ┆ ---       ┆ ---       ┆ ---       ┆ ---       ┆ ---       ┆ ---    │
+│ datetime[ns]        ┆ f64       ┆ f64       ┆ f64       ┆ f64       ┆ f64       ┆ str    │
+╞═════════════════════╪═══════════╪═══════════╪═══════════╪═══════════╪═══════════╪════════╡
+│ 2007-01-03 00:00:00 ┆ 81.270682 ┆ 81.608333 ┆ 80.43953  ┆ 80.822639 ┆ 1.1525e7  ┆ DIA    │
+│ 2007-01-04 00:00:00 ┆ 80.829127 ┆ 81.13431  ┆ 80.446017 ┆ 80.958992 ┆ 1.03187e7 ┆ DIA    │
+│ 2007-01-05 00:00:00 ┆ 80.822611 ┆ 80.84209  ┆ 80.20574  ┆ 80.348595 ┆ 9.389e6   ┆ DIA    │
+└─────────────────────┴───────────┴───────────┴───────────┴───────────┴───────────┴────────┘
+['DIA', 'EEM', 'EFA', 'EWJ', 'FXI', 'GLD', 'HYG', 'IEF', 'IWM', 'LQD', 'MDY', 'QQQ', 'SPY', 'TLT', 'VTV', 'VUG', 'XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY']
+2007-01-03 00:00:00 2025-12-30 00:00:00
+(492, 2)
+Schema({'symbol': String, 'eligible_year': Int64})
+shape: (5, 2)
+┌────────┬───────────────┐
+│ symbol ┆ eligible_year │
+│ ---    ┆ ---           │
+│ str    ┆ i64           │
+╞════════╪═══════════════╡
+│ DIA    ┆ 2007          │
+│ DIA    ┆ 2008          │
+│ DIA    ┆ 2009          │
+│ DIA    ┆ 2010          │
+│ DIA    ┆ 2011          │
+└────────┴───────────────┘
+25 2007 2026
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters.utils import apply_purging_and_embargo\nprint(inspect.signature(apply_purging_and_embargo))\nprint(inspect.getdoc(apply_purging_and_embargo))\nEOF",
+  "description": "Inspect purging/embargo semantics for label_horizon"
+}
+
+--- USER ---
+[tool_result (error)]
+Exit code 1
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+ImportError: cannot import name 'apply_purging_and_embargo' from 'ml4t.diagnostic.splitters.utils' (/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/utils.py)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport ml4t.diagnostic.splitters as sp\nimport inspect\nsrc = inspect.getsource(sp)\nEOF\ngrep -rl \"def apply_purging_and_embargo\" /work/.venv/lib/python3.12/site-packages/ml4t/",
+  "description": "Find apply_purging_and_embargo definition location"
+}
+
+--- USER ---
+[tool_result]
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/purging.py
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.core.purging import apply_purging_and_embargo\nprint(inspect.signature(apply_purging_and_embargo))\nprint(inspect.getdoc(apply_purging_and_embargo))\nEOF",
+  "description": "Inspect purging and embargo function docs"
+}
+
+--- USER ---
+[tool_result]
+(train_indices: 'NDArray[np.intp]', test_start: 'int | pd.Timestamp', test_end: 'int | pd.Timestamp', label_horizon: 'int | pd.Timedelta' = 0, embargo_size: 'int | pd.Timedelta | None' = None, embargo_pct: 'float | None' = None, n_samples: 'int | None' = None, timestamps: 'pd.DatetimeIndex | None' = None, calendar: 'TradingCalendar | None' = None) -> 'NDArray[np.intp]'
+Apply both purging and embargo to training indices.
+
+This is a convenience function that combines purging and embargo
+to clean a set of training indices, removing any that could lead
+to data leakage or serial correlation issues.
+
+Parameters
+----------
+train_indices : numpy.ndarray
+    Initial training indices before purging/embargo.
+
+test_start : int or pandas.Timestamp
+    Start index/time of test period.
+
+test_end : int or pandas.Timestamp
+    End index/time of test period (exclusive).
+
+label_horizon : int or pandas.Timedelta, default=0
+    Forward-looking period of labels.
+    When timestamps and calendar are provided and label_horizon is int,
+    it is interpreted as trading days (not calendar days).
+
+embargo_size : int or pandas.Timedelta, optional
+    Size of embargo period after test set.
+
+embargo_pct : float, optional
+    Embargo size as percentage of total samples.
+
+n_samples : int, optional
+    Total number of samples (required for integer indices).
+
+timestamps : pandas.DatetimeIndex, optional
+    Timestamps for each sample when using time-based indices.
+
+calendar : TradingCalendar, optional
+    Trading calendar for trading-day-aware conversion.
+    When provided with integer label_horizon and timestamps,
+    label_horizon is interpreted as trading days.
+
+Returns:
+-------
+clean_indices : numpy.ndarray
+    Training indices after removing purged and embargoed samples.
+
+Examples:
+--------
+>>> train = np.arange(100)
+>>> clean = apply_purging_and_embargo(
+...     train_indices=train,
+...     test_start=50,
+...     test_end=60,
+...     label_horizon=5,
+...     embargo_size=5,
+...     n_samples=100
+... )
+>>> # Removes [45,50) for purging and [60,65) for embargo
+>>> len(clean)
+85
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.core import purging\nprint([n for n in dir(purging) if not n.startswith('_')])\nEOF",
+  "description": "List public functions in purging module"
+}
+
+--- USER ---
+[tool_result]
+['Literal', 'TYPE_CHECKING', 'annotations', 'apply_purging_and_embargo', 'calculate_embargo_indices', 'calculate_purge_indices', 'cast', 'np', 'pd', 'warnings']
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.core.purging import calculate_purge_indices\nprint(inspect.getsource(calculate_purge_indices))\nEOF",
+  "description": "Inspect calculate_purge_indices implementation"
+}
+
+--- USER ---
+[tool_result]
+def calculate_purge_indices(
+    n_samples: int | None = None,
+    test_start: int | pd.Timestamp | None = None,
+    test_end: int | pd.Timestamp | None = None,
+    label_horizon: int | pd.Timedelta = 0,
+    timestamps: pd.DatetimeIndex | None = None,
+    calendar: TradingCalendar | None = None,
+) -> list[int]:
+    """Calculate indices to purge from training set to prevent label leakage.
+
+    Purging removes training samples whose labels could contain information
+    from the test period. If a feature at time t is used to predict a label
+    that depends on information up to time t+h, we must remove training
+    samples from [test_start - h, test_start).
+
+    Parameters
+    ----------
+    n_samples : int, optional
+        Total number of samples when using integer indices.
+
+    test_start : int or pandas.Timestamp
+        Start index/time of test period.
+
+    test_end : int or pandas.Timestamp
+        End index/time of test period (exclusive).
+
+    label_horizon : int or pandas.Timedelta, default=0
+        Forward-looking period of labels. For example, if predicting
+        20-day returns, label_horizon=20 (days).
+
+        When timestamps and calendar are provided and label_horizon is int,
+        it is interpreted as trading days (not calendar days).
+
+    timestamps : pandas.DatetimeIndex, optional
+        Timestamps for each sample when using time-based indices.
+
+    calendar : TradingCalendar, optional
+        Trading calendar for trading-day-aware conversion.
+        When provided with integer label_horizon and timestamps,
+        label_horizon is interpreted as trading days.
+
+    Returns:
+    -------
+    purged_indices : list of int
+        Integer positions of samples to remove from training set.
+
+    Examples:
+    --------
+    >>> # Integer indices
+    >>> purged = calculate_purge_indices(
+    ...     n_samples=100, test_start=50, test_end=60, label_horizon=5
+    ... )
+    >>> purged
+    [45, 46, 47, 48, 49]
+
+    >>> # Timestamp indices
+    >>> times = pd.date_range("2020-01-01", periods=100, freq="D")
+    >>> purged = calculate_purge_indices(
+    ...     timestamps=times,
+    ...     test_start=times[50],
+    ...     test_end=times[60],
+    ...     label_horizon=pd.Timedelta("5D")
+    ... )
+
+    >>> # Trading-day-aware purging
+    >>> from ml4t.diagnostic.splitters.calendar import TradingCalendar
+    >>> calendar = TradingCalendar('NYSE')
+    >>> purged = calculate_purge_indices(
+    ...     timestamps=times,
+    ...     test_start=times[50],
+    ...     test_end=times[60],
+    ...     label_horizon=5,  # 5 TRADING days
+    ...     calendar=calendar
+    ... )
+    """
+    if timestamps is not None:
+        # Time-based purging
+        if not isinstance(test_start, pd.Timestamp) or not isinstance(
+            test_end,
+            pd.Timestamp,
+        ):
+            raise TypeError(
+                "test_start and test_end must be Timestamps when using timestamps",
+            )
+
+        timestamps, test_start, test_end = _normalize_timezone_aware_inputs(
+            timestamps, test_start, test_end
+        )
+
+        if not isinstance(label_horizon, pd.Timedelta):
+            # label_horizon is int - need to convert
+            if calendar is not None:
+                # Trading-day-aware conversion
+                from ml4t.diagnostic.splitters.calendar import trading_days_to_timedelta
+
+                label_horizon = trading_days_to_timedelta(
+                    n_trading_days=label_horizon,
+                    calendar=calendar,
+                    reference_date=test_start,
+                    direction="backward",
+                )
+            else:
+                # Fallback to calendar days with warning
+                if label_horizon > 0:
+                    warnings.warn(
+                        f"label_horizon={label_horizon} (int) with timestamps but no calendar. "
+                        "Interpreting as calendar days. For trading days, provide a calendar.",
+                        UserWarning,
+           
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nprint(inspect.getsource(WalkForwardCV._should_use_calendar_splitting))\nEOF",
+  "description": "Inspect calendar splitting decision logic"
+}
+
+--- USER ---
+[tool_result]
+    def _should_use_calendar_splitting(self) -> bool:
+        """Determine if calendar-first splitting should be used.
+
+        Calendar splitting is used when:
+        1. A calendar is configured (always true now with NYSE default), AND
+        2. Time-based sizes are used (str test_size/train_size), OR
+        3. The config has filter_non_trading=True (default)
+        """
+        if self.calendar is None:
+            return False
+
+        # Time-based sizes always need calendar
+        if isinstance(self.test_size, str) or isinstance(self.train_size, str):
+            return True
+
+        # Calendar filtering of non-trading rows
+        if self.config.filter_non_trading:
+            return True
+
+        return False
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters.config import WalkForwardConfig\nsrc = inspect.getsource(WalkForwardConfig)\nprint(src[:3000])\nEOF",
+  "description": "Inspect WalkForwardConfig defaults"
+}
+
+--- USER ---
+[tool_result]
+class WalkForwardConfig(SplitterConfig):
+    """Configuration for Walk-Forward Cross-Validation.
+
+    Walk-forward validation is the standard approach for time-series backtesting,
+    where the model is trained on historical data and tested on future periods.
+
+    Attributes
+    ----------
+    test_size : int | float | str | None
+        Size of validation folds. Alias: ``val_size``.
+        - int: Number of samples (or sessions if align_to_sessions=True)
+        - float: Proportion of dataset (0.0 to 1.0)
+        - str: Time-based ('4W', '3M') - NOT supported with align_to_sessions=True
+        - None: Auto-calculated to maintain equal test set sizes
+    train_size : int | float | str | None
+        Training set size specification (same format as test_size).
+        If None, uses expanding window (all data before test set).
+    step_size : int | None
+        Step size between consecutive splits:
+        - int: Number of samples (or sessions if align_to_sessions=True)
+        - None: Defaults to test_size (non-overlapping test sets)
+    test_period : int | str | None
+        Held-out test period specification (reserves most recent data for final evaluation):
+        - int: Number of trading days (requires calendar_id)
+        - str: Time-based ('52D', '4W')
+        - None: No held-out test period (default, legacy behavior)
+    test_start : date | str | None
+        Explicit start date for held-out test period. Mutually exclusive with test_period.
+        Accepts date object or ISO format string ('2024-01-01').
+        Alias: ``holdout_start``.
+    test_end : date | str | None
+        Explicit end date for held-out test period. Default: end of data.
+        Accepts date object or ISO format string ('2024-12-31').
+        Alias: ``holdout_end``.
+    fold_direction : Literal["forward", "backward"]
+        Direction of validation folds:
+        - "forward": Traditional walk-forward (folds step forward in time)
+        - "backward": Folds step backward from held-out test boundary
+    calendar_id : str | None
+        Trading calendar for trading-day-aware gap calculations.
+        Examples: "NYSE", "CME_Equity", "LSE"
+        Required when label_horizon is int and you want trading-day interpretation.
+    """
+
+    test_size: int | float | str | None = Field(
+        None,
+        description=(
+            "Validation fold size: int (samples/sessions), float (proportion), "
+            "str (time-based, e.g., '4W'). Alias: val_size."
+        ),
+    )
+    train_size: int | float | str | None = Field(
+        None,
+        description=(
+            "Train set size: int (samples/sessions), float (proportion), "
+            "str (time-based, e.g., '12W'). "
+            "None uses expanding window (all data before test)."
+        ),
+    )
+    step_size: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Step size between splits (int: samples/sessions). "
+            "None defaults to test_size (non-overlapping)."
+        ),
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nfrom ml4t.diagnostic.splitters.config import WalkForwardConfig\nimport inspect\nsrc = inspect.getsource(WalkForwardConfig)\nidx = src.find(\"calendar_id:\")\nprint(src[idx-200:idx+400])\nEOF",
+  "description": "Find calendar_id field default in config"
+}
+
+--- USER ---
+[tool_result]
+rection of validation folds: 'forward' (traditional) or "
+            "'backward' (step backward from held-out test boundary)."
+        ),
+    )
+
+    # Calendar for trading-day-aware calculations
+    calendar_id: str | None = Field(
+        "NYSE",
+        description=(
+            "Trading calendar for calendar-first splitting and gap calculations. "
+            "Default: 'NYSE'. Examples: 'NYSE', 'CME_Equity', 'LSE'. "
+            "Set to None to disable calendar-aware splitting."
+        ),
+    )
+
+    isolate_groups: bool = Field(
+        False,
+        description=(
+            "Default Fa
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nimport inspect\nfrom ml4t.diagnostic.splitters import WalkForwardCV\nprint(inspect.getsource(WalkForwardCV._split_by_calendar))\nEOF",
+  "description": "Inspect calendar-based splitting implementation"
+}
+
+--- USER ---
+[tool_result]
+    def _split_by_calendar(
+        self,
+        X: pl.DataFrame | pd.DataFrame | NDArray[Any],
+        _y: pl.Series | pd.Series | NDArray[Any] | None,
+        groups: pl.Series | pd.Series | NDArray[Any] | None,
+        n_samples: int,
+    ) -> Generator[tuple[NDArray[np.intp], NDArray[np.intp]], None, None]:
+        """Generate splits using calendar-aware session boundaries.
+
+        This is the calendar-first code path. All fold arithmetic happens in
+        session space, and non-trading rows are filtered out.
+        """
+        # Extract timestamps
+        timestamps = self._extract_timestamps(X, self.timestamp_col)
+        if timestamps is None:
+            raise ValueError(
+                "Calendar-first splitting requires timestamps. "
+                "For pandas DataFrames: use a DatetimeIndex. "
+                "For Polars DataFrames: set timestamp_col='your_datetime_column'."
+            )
+
+        assert self.calendar is not None  # guaranteed by _should_use_calendar_splitting
+
+        # Get sessions and trading mask
+        sessions, trading_mask = self.calendar.get_sessions_and_mask(timestamps)
+
+        # Log non-trading row exclusion
+        n_excluded = int((~trading_mask).sum())
+        if n_excluded > 0 and self.config.filter_non_trading:
+            logger.info(
+                "Calendar %s: %d non-trading rows excluded from %d total",
+                self.calendar.config.exchange,
+                n_excluded,
+                n_samples,
+            )
+
+        # Build unique sessions and session-to-indices mapping
+        # Only consider trading rows
+        if self.config.filter_non_trading:
+            trading_indices = np.where(trading_mask)[0]
+            trading_sessions = sessions.iloc[trading_indices].dropna()
+        else:
+            trading_indices = np.arange(n_samples)
+            trading_sessions = sessions
+
+        # Build unique sessions and session->row index mapping in one pass.
+        trading_session_values = trading_sessions.to_numpy()
+        valid_session_mask = ~pd.isna(trading_session_values)
+        trading_session_values = trading_session_values[valid_session_mask]
+        trading_indices = trading_indices[valid_session_mask]
+
+        if len(trading_session_values) == 0:
+            raise ValueError(
+                "No trading sessions found in the data for calendar "
+                f"'{self.calendar.config.exchange}'."
+            )
+
+        unique_sessions, inverse = np.unique(trading_session_values, return_inverse=True)
+        n_sessions = len(unique_sessions)
+
+        if n_sessions == 0:
+            raise ValueError(
+                "No trading sessions found in the data for calendar "
+                f"'{self.calendar.config.exchange}'."
+            )
+
+        order = np.argsort(inverse, kind="mergesort")
+        split_points = np.flatnonzero(np.diff(inverse[order])) + 1
+        grouped_positions = np.split(order, split_points)
+        session_indices_by_pos = [
+            np.sort(trading_indices[group].astype(np.intp)) for group in grouped_positions
+        ]
+
+        # Convert size specs to session counts
+        if self.test_size is None:
+            test_size_sessions = n_sessions // (self.n_splits + 1)
+        else:
+            test_size_sessions = self._size_to_sessions(self.test_size, n_sessions)
+
+        if self.train_size is not None:
+            train_size_sessions = self._size_to_sessions(self.train_size, n_sessions)
+        else:
+            train_size_sessions = None
+
+        # Calculate split points in session space
+        if self.consecutive:
+            step_size_sessions = test_size_sessions
+            if train_size_sessions is not None and not self.expanding:
+                first_test_start_session = train_size_sessions
+            elif self.expanding:
+                first_test_start_session = (
+                    train_size_sessions if train_size_sessions is not None else test_size_sessions
+                )
+            else:
+                first_
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nfrom ml4t.diagnostic.splitters.config import WalkForwardConfig\nimport inspect\nsrc = inspect.getsource(WalkForwardConfig)\nidx = src.find(\"filter_non_trading\")\nprint(src[idx-50:idx+400])\nEOF",
+  "description": "Check filter_non_trading default value"
+}
+
+--- USER ---
+[tool_result]
+(Bash completed with no output)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source /work/.venv/bin/activate\npython3 - <<'EOF'\nfrom ml4t.diagnostic.splitters.config import SplitterConfig, WalkForwardConfig\nimport inspect\nfor cls in [WalkForwardConfig, SplitterConfig]:\n    try:\n        src = inspect.getsource(cls)\n    except Exception as e:\n        print(cls, e); continue\n    idx = src.find(\"filter_non_trading\")\n    if idx>=0:\n        print(cls, src[idx-50:idx+400])\n    else:\n        print(cls, \"not found\")\nEOF",
+  "description": "Search both config classes for filter_non_trading field"
+}
+
+--- USER ---
+[tool_result]
+<class 'ml4t.diagnostic.splitters.config.WalkForwardConfig'> not found
+<class 'ml4t.diagnostic.splitters.config.SplitterConfig'> ndex (backward compatible)."
+        ),
+    )
+    filter_non_trading: bool = Field(
+        True,
+        description=(
+            "When calendar is active, exclude non-trading day rows from fold indices. "
+            "Set False to include all rows regardless of trading calendar."
+        ),
+    )
+    isolate_groups: bool = Field(
+        False,
+        description=(
+            "Prevent same group (symbol/contract) from appearing in both train
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "mkdir -p /work/analysis",
+  "description": "Create analysis directory for scripts"
+}
+
+--- USER ---
+[tool_result]
+(Bash completed with no output)
+
+--- ASSISTANT ---
+Now let me write and run step 1 (eligibility filtering).
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/analysis/step1_eligibility.py",
+  "content": "\"\"\"Step 1: filter the price panel to eligible (symbol, date) pairs.\"\"\"\n\nimport pandas as pd\n\nprices = pd.read_parquet(\"data/prices.parquet\")\nelig = pd.read_csv(\"data/eligibility.csv\")\n\nprices = prices.sort_values([\"symbol\", \"timestamp\"]).reset_index(drop=True)\n\ntotal_rows = len(prices)\n\neligible_pairs = set(zip(elig[\"symbol\"], elig[\"eligible_year\"]))\nprices[\"year\"] = prices[\"timestamp\"].dt.year\nis_eligible = [\n    (sym, yr) in eligible_pairs\n    for sym, yr in zip(prices[\"symbol\"], prices[\"year\"])\n]\nprices[\"eligible\"] = is_eligible\n\nsurvived = int(prices[\"eligible\"].sum())\nprint(f\"Total (symbol, date) rows in panel: {total_rows:,}\")\nprint(f\"Eligible rows: {survived:,}\")\nprint(f\"Fraction surviving: {survived / total_rows:.4f}\")\n\n# Sanity: per-symbol eligible row counts\nprint()\nprint(prices.groupby(\"symbol\")[\"eligible\"].agg([\"sum\", \"count\"]))\n"
+}
+
+--- USER ---
+[tool_result]
+File created successfully at: /work/analysis/step1_eligibility.py (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step1_eligibility.py",
+  "description": "Run step 1 eligibility filter script"
+}
+
+--- USER ---
+[tool_result]
+Total (symbol, date) rows in panel: 119,408
+Eligible rows: 117,460
+Fraction surviving: 0.9837
+
+         sum  count
+symbol             
+DIA     4779   4779
+EEM     4779   4779
+EFA     4779   4779
+EWJ     4779   4779
+FXI     4779   4779
+GLD     4779   4779
+HYG     4023   4712
+IEF     4779   4779
+IWM     4779   4779
+LQD     4275   4779
+MDY     4779   4779
+QQQ     4779   4779
+SPY     4779   4779
+TLT     4779   4779
+VTV     4275   4779
+VUG     4528   4779
+XLB     4779   4779
+XLE     4779   4779
+XLF     4779   4779
+XLI     4779   4779
+XLK     4779   4779
+XLP     4779   4779
+XLU     4779   4779
+XLV     4779   4779
+XLY     4779   4779
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/analysis/step2_features.py",
+  "content": "\"\"\"Step 2: build eight features, causal within each symbol.\"\"\"\n\nimport numpy as np\nimport pandas as pd\nfrom ml4t.engineer.features.momentum.rsi import rsi\n\nprices = pd.read_parquet(\"data/prices.parquet\")\nelig = pd.read_csv(\"data/eligibility.csv\")\n\nprices = prices.sort_values([\"symbol\", \"timestamp\"]).reset_index(drop=True)\n\n# Features are computed on the FULL per-symbol history (not gated by\n# eligibility), because eligibility reflects universe membership, not data\n# availability. A symbol's own trailing prices are causal information\n# regardless of whether it happened to be liquid enough to trade that year.\ng = prices.groupby(\"symbol\", group_keys=False)\n\ndaily_ret = g[\"close\"].pct_change()\nprices[\"daily_ret\"] = daily_ret\n\nfor k in (21, 63, 126, 252):\n    prices[f\"mom_{k}\"] = g[\"close\"].apply(lambda s, k=k: s / s.shift(k) - 1)\n\nfor k in (21, 63):\n    prices[f\"vol_{k}\"] = prices.groupby(\"symbol\")[\"daily_ret\"].transform(\n        lambda s, k=k: s.rolling(k).std()\n    )\n\nrsi_parts = []\nfor sym, sub in prices.groupby(\"symbol\", sort=False):\n    r = rsi(sub[\"close\"].to_numpy(), period=14)\n    rsi_parts.append(pd.Series(r, index=sub.index))\nprices[\"rsi_14\"] = pd.concat(rsi_parts).sort_index()\n\n# --- eligibility filter (from step 1) ---\neligible_pairs = set(zip(elig[\"symbol\"], elig[\"eligible_year\"]))\nprices[\"year\"] = prices[\"timestamp\"].dt.year\nprices = prices[\n    [(sym, yr) in eligible_pairs for sym, yr in zip(prices[\"symbol\"], prices[\"year\"])]\n].copy()\n\n# Cross-sectional dollar-volume rank: computed *after* the eligibility filter,\n# so the cross-section on each date is the point-in-time investable universe,\n# not all 25 tickers regardless of whether they were tradable that year.\nprices[\"dollar_volume\"] = prices[\"close\"] * prices[\"volume\"]\nprices[\"dv_rank\"] = prices.groupby(\"timestamp\")[\"dollar_volume\"].rank(pct=True)\n\nfeature_cols = [\n    \"mom_21\", \"mom_63\", \"mom_126\", \"mom_252\",\n    \"vol_21\", \"vol_63\",\n    \"rsi_14\",\n    \"dv_rank\",\n]\n\nprint(prices[[\"symbol\", \"timestamp\", *feature_cols]].tail(10))\nprint()\nprint(prices[feature_cols].describe())\nprint()\nprint(\"NaN counts per feature:\")\nprint(prices[feature_cols].isna().sum())\n\nprices.to_parquet(\"analysis/panel_with_features.parquet\")\nprint(\"\\nSaved analysis/panel_with_features.parquet, shape:\", prices.shape)\n"
+}
+
+--- USER ---
+[tool_result]
+File created successfully at: /work/analysis/step2_features.py (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step2_features.py",
+  "description": "Run step 2 feature engineering script"
+}
+
+--- USER ---
+[tool_result]
+       symbol  timestamp    mom_21  ...    vol_63     rsi_14  dv_rank
+119398    XLY 2025-12-16  0.056174  ...  0.011896  63.683731     0.36
+119399    XLY 2025-12-17  0.053865  ...  0.011974  57.204758     0.36
+119400    XLY 2025-12-18  0.089889  ...  0.012114  62.507027     0.48
+119401    XLY 2025-12-19  0.085475  ...  0.012118  60.339419     0.44
+119402    XLY 2025-12-22  0.108541  ...  0.012074  62.436354     0.44
+119403    XLY 2025-12-23  0.085695  ...  0.012048  61.620452     0.56
+119404    XLY 2025-12-24  0.075077  ...  0.011909  62.910075     0.16
+119405    XLY 2025-12-26  0.047917  ...  0.011787  60.113296     0.32
+119406    XLY 2025-12-29  0.030549  ...  0.011846  54.332565     0.40
+119407    XLY 2025-12-30  0.020033  ...  0.011842  52.128212     0.36
+
+[10 rows x 10 columns]
+
+              mom_21         mom_63  ...         rsi_14        dv_rank
+count  117019.000000  116137.000000  ...  117166.000000  117460.000000
+mean        0.008006       0.023748  ...      53.645286       0.520343
+std         0.053886       0.089880  ...      11.458412       0.288438
+min        -0.556993      -0.591981  ...      13.960991       0.040000
+25%        -0.017148      -0.018866  ...      45.714953       0.280000
+50%         0.010475       0.027552  ...      54.163263       0.520000
+75%         0.036595       0.072640  ...      61.944663       0.760000
+max         0.568460       1.013523  ...      89.434395       1.000000
+
+[8 rows x 8 columns]
+
+NaN counts per feature:
+mom_21      441
+mom_63     1323
+mom_126    2646
+mom_252    5293
+vol_21      441
+vol_63     1323
+rsi_14      294
+dv_rank       0
+dtype: int64
+
+Saved analysis/panel_with_features.parquet, shape: (117460, 18)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python3 - <<'EOF'\nimport pandas as pd\ndf = pd.read_parquet(\"analysis/panel_with_features.parquet\")\nprint(df[[\"symbol\",\"timestamp\",\"year\"]].groupby(\"symbol\")[\"year\"].apply(lambda s: sorted(s.unique())).loc[[\"HYG\",\"LQD\",\"VTV\",\"VUG\"]])\nEOF",
+  "description": "Confirm which symbols have eligibility year gaps"
+}
+
+--- USER ---
+[tool_result]
+symbol
+HYG    [2010, 2011, 2012, 2013, 2014, 2015, 2016, 201...
+LQD    [2009, 2010, 2011, 2012, 2013, 2014, 2015, 201...
+VTV    [2009, 2010, 2011, 2012, 2013, 2014, 2015, 201...
+VUG    [2008, 2009, 2010, 2011, 2012, 2013, 2014, 201...
+Name: year, dtype: object
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+## Step 3: forward-return label — code review before running
+
+Here's the label-construction code I'm about to run (extending the same script that builds features, since the label needs the same "full history, filter after" treatment):
+
+```python
+prices = pd.read_parquet("data/prices.parquet")
+prices = prices.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+g = prices.groupby("symbol", group_keys=False)
+
+# ... (feature block, all trailing: shift(k>0), rolling(k).std(), rsi) ...
+
+# THE LINE: reaches forward on purpose — it's the label.
+prices["fwd_ret_21"] = g["close"].apply(lambda s: s.shift(-21) / s - 1)
+
+# eligibility filter applied AFTER label construction, not before
+prices = prices[eligible_mask].copy()
+```
+
+**The line that puts the future into the label** is `prices["fwd_ret_21"] = g["close"].apply(lambda s: s.shift(-21) / s - 1)`. It looks forward by design — that's what a forward-return label is. The thing to verify isn't "does it look forward" (it must), but two ways that lookahead could go wrong silently:
+
+1. **Leaking into the features.** I checked every feature column (`mom_21/63/126/252`, `vol_21/63`, `rsi_14`, `dv_rank`): each uses `shift(k)` with `k ≥ 0` or a trailing `rolling(k)` ending at the current row — never a negative shift, never a reference to `fwd_ret_21`. The label is written to its own column after the feature block and nothing downstream reads it back into a feature. So the forward-looking value can't contaminate what the model is allowed to see at time *t*.
+
+2. **Leaking across eligibility gaps.** This is the subtler one. Four symbols (HYG, LQD, VTV, VUG) are missing entire early years in `eligibility.csv`. If I computed `shift(-21)` *after* filtering to eligible rows, `.shift(-21)` would count 21 *rows* in the filtered frame — but for a symbol with a missing year, row *t+21* in the filtered frame might actually be more than a year of calendar time ahead of row *t*. That wouldn't error; it would just quietly mislabel a ~1-year return as a "21-session" return, and it would desync from the `label_horizon=21` purge window I'm about to hand `WalkForwardCV` in step 4. That's why the label (like the features) is computed on the **full, ungapped per-symbol series first**, and the eligibility filter is applied only afterward — so `shift(-21)` always means 21 actual trading sessions for that symbol, full stop.
+
+One more thing worth flagging explicitly: the last 21 rows of each symbol's history will get `fwd_ret_21 = NaN` (no future data to look forward into) — I'll drop those before training, not fill them.
+
+Want me to go ahead and run this?
+
+==============================================================================
+RESULT
+## Step 3: forward-return label — code review before running
+
+Here's the label-construction code I'm about to run (extending the same script that builds features, since the label needs the same "full history, filter after" treatment):
+
+```python
+prices = pd.read_parquet("data/prices.parquet")
+prices = prices.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+g = prices.groupby("symbol", group_keys=False)
+
+# ... (feature block, all trailing: shift(k>0), rolling(k).std(), rsi) ...
+
+# THE LINE: reaches forward on purpose — it's the label.
+prices["fwd_ret_21"] = g["close"].apply(lambda s: s.shift(-21) / s - 1)
+
+# eligibility filter applied AFTER label construction, not before
+prices = prices[eligible_mask].copy()
+```
+
+**The line that puts the future into the label** is `prices["fwd_ret_21"] = g["close"].apply(lambda s: s.shift(-21) / s - 1)`. It looks forward by design — that's what a forward-return label is. The thing to verify isn't "does it look forward" (it must), but two ways that lookahead could go wrong silently:
+
+1. **Leaking into the features.** I checked every feature column (`mom_21/63/126/252`, `vol_21/63`, `rsi_14`, `dv_rank`): each uses `shift(k)` with `k ≥ 0` or a trailing `rolling(k)` ending at the current row — never a negative shift, never a reference to `fwd_ret_21`. The label is written to its own column after the feature block and nothing downstream reads it back into a feature. So the forward-looking value can't contaminate what the model is allowed to see at time *t*.
+
+2. **Leaking across eligibility gaps.** This is the subtler one. Four symbols (HYG, LQD, VTV, VUG) are missing entire early years in `eligibility.csv`. If I computed `shift(-21)` *after* filtering to eligible rows, `.shift(-21)` would count 21 *rows* in the filtered frame — but for a symbol with a missing year, row *t+21* in the filtered frame might actually be more than a year of calendar time ahead of row *t*. That wouldn't error; it would just quietly mislabel a ~1-year return as a "21-session" return, and it would desync from the `label_horizon=21` purge window I'm about to hand `WalkForwardCV` in step 4. That's why the label (like the features) is computed on the **full, ungapped per-symbol series first**, and the eligibility filter is applied only afterward — so `shift(-21)` always means 21 actual trading sessions for that symbol, full stop.
+
+One more thing worth flagging explicitly: the last 21 rows of each symbol's history will get `fwd_ret_21 = NaN` (no future data to look forward into) — I'll drop those before training, not fill them.
+
+Want me to go ahead and run this?
+==============================================================================
+==============================================================================
+SESSION INIT
+  model: claude-sonnet-5
+  cwd: /work
+  permissionMode: bypassPermissions
+  apiKeySource: none
+  tools: ['Task', 'Bash', 'CronCreate', 'CronDelete', 'CronList', 'Edit', 'EnterWorktree', 'ExitWorktree', 'ListAgents', 'NotebookEdit', 'Read', 'RemoteTrigger', 'ReportFindings', 'ScheduleWakeup', 'SendMessage', 'Skill', 'TaskOutput', 'TaskStop', 'ToolSearch', 'WebFetch', 'WebSearch', 'Workflow', 'Write']
+  slash_commands: ['deep-research', 'dataviz', 'update-config', 'verify', 'debug', 'code-review', 'simplify', 'batch', 'fewer-permission-prompts', 'doctor', 'loop', 'schedule', 'claude-api', 'workflow-authoring', 'run', 'run-skill-generator', 'agents', 'auto-mode-setup', 'autocompact', 'clear', 'color', 'compact', 'config', 'output-style', 'context', 'effort', 'fast', 'heapdump', 'init', 'mcp', 'model', '__remote-workflow', 'workflow-launch-exec', 'reload-plugins', 'reload-skills', 'rename', 'security-review', 'usage', 'insights', 'recap', 'goal', 'list-agents', 'team-onboarding']
+==============================================================================
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/analysis/step2_features.py",
+  "content": "\"\"\"Steps 2-3: build eight features and the 21-session forward-return label,\nboth computed on the full per-symbol history, then filter to eligible rows.\"\"\"\n\nimport numpy as np\nimport pandas as pd\nfrom ml4t.engineer.features.momentum.rsi import rsi\n\nprices = pd.read_parquet(\"data/prices.parquet\")\nelig = pd.read_csv(\"data/eligibility.csv\")\n\nprices = prices.sort_values([\"symbol\", \"timestamp\"]).reset_index(drop=True)\n\n# Features and label are computed on the FULL per-symbol history (not gated\n# by eligibility), because eligibility reflects universe membership, not data\n# availability, and because eligibility gaps would otherwise make a fixed\n# row-offset shift silently span more calendar time than intended for a\n# handful of symbols (HYG, LQD, VTV, VUG) that are missing early years.\ng = prices.groupby(\"symbol\", group_keys=False)\n\ndaily_ret = g[\"close\"].pct_change()\nprices[\"daily_ret\"] = daily_ret\n\nfor k in (21, 63, 126, 252):\n    prices[f\"mom_{k}\"] = g[\"close\"].apply(lambda s, k=k: s / s.shift(k) - 1)\n\nfor k in (21, 63):\n    prices[f\"vol_{k}\"] = prices.groupby(\"symbol\")[\"daily_ret\"].transform(\n        lambda s, k=k: s.rolling(k).std()\n    )\n\nrsi_parts = []\nfor sym, sub in prices.groupby(\"symbol\", sort=False):\n    r = rsi(sub[\"close\"].to_numpy(), period=14)\n    rsi_parts.append(pd.Series(r, index=sub.index))\nprices[\"rsi_14\"] = pd.concat(rsi_parts).sort_index()\n\n# 21-session forward-return label. Looks forward on purpose (it's the\n# target); computed here, before the eligibility filter, so shift(-21)\n# always means 21 real trading sessions for that symbol.\nprices[\"fwd_ret_21\"] = g[\"close\"].apply(lambda s: s.shift(-21) / s - 1)\n\n# --- eligibility filter (from step 1) ---\neligible_pairs = set(zip(elig[\"symbol\"], elig[\"eligible_year\"]))\nprices[\"year\"] = prices[\"timestamp\"].dt.year\nprices = prices[\n    [(sym, yr) in eligible_pairs for sym, yr in zip(prices[\"symbol\"], prices[\"year\"])]\n].copy()\n\n# Cross-sectional dollar-volume rank: computed *after* the eligibility filter,\n# so the cross-section on each date is the point-in-time investable universe,\n# not all 25 tickers regardless of whether they were tradable that year.\nprices[\"dollar_volume\"] = prices[\"close\"] * prices[\"volume\"]\nprices[\"dv_rank\"] = prices.groupby(\"timestamp\")[\"dollar_volume\"].rank(pct=True)\n\nfeature_cols = [\n    \"mom_21\", \"mom_63\", \"mom_126\", \"mom_252\",\n    \"vol_21\", \"vol_63\",\n    \"rsi_14\",\n    \"dv_rank\",\n]\n\nprint(\"NaN counts (features + label), before dropping warm-up/tail rows:\")\nprint(prices[[*feature_cols, \"fwd_ret_21\"]].isna().sum())\n\nn_before = len(prices)\nmodel_panel = prices.dropna(subset=[*feature_cols, \"fwd_ret_21\"]).copy()\nmodel_panel = model_panel.sort_values([\"timestamp\", \"symbol\"]).reset_index(drop=True)\nprint(f\"\\nRows before dropna: {n_before:,}  after dropna: {len(model_panel):,}\")\n\nmodel_panel.to_parquet(\"analysis/model_panel.parquet\")\nprint(\"Saved analysis/model_panel.parquet, shape:\", model_panel.shape)\nprint(model_panel[[\"symbol\", \"timestamp\", *feature_cols, \"fwd_ret_21\"]].head(3))\n"
+}
+
+--- USER ---
+[tool_result]
+The file /work/analysis/step2_features.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step2_features.py",
+  "description": "Run combined feature + label construction script"
+}
+
+--- USER ---
+[tool_result]
+NaN counts (features + label), before dropping warm-up/tail rows:
+mom_21         441
+mom_63        1323
+mom_126       2646
+mom_252       5293
+vol_21         441
+vol_63        1323
+rsi_14         294
+dv_rank          0
+fwd_ret_21     525
+dtype: int64
+
+Rows before dropna: 117,460  after dropna: 111,642
+Saved analysis/model_panel.parquet, shape: (111642, 19)
+  symbol  timestamp    mom_21  ...     rsi_14   dv_rank  fwd_ret_21
+0    DIA 2008-01-03 -0.016901  ...  41.541354  0.727273   -0.034916
+1    EEM 2008-01-03 -0.013045  ...  47.756986  0.863636   -0.061012
+2    EFA 2008-01-03 -0.028036  ...  46.838404  0.636364   -0.070836
+
+[3 rows x 11 columns]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/analysis/step4_train.py",
+  "content": "\"\"\"Step 4: train a LightGBM regressor with WalkForwardCV(label_horizon=21).\"\"\"\n\nimport lightgbm as lgb\nimport numpy as np\nimport pandas as pd\nfrom ml4t.diagnostic.splitters import WalkForwardCV\n\nmodel_panel = pd.read_parquet(\"analysis/model_panel.parquet\")\nmodel_panel = model_panel.sort_values([\"timestamp\", \"symbol\"]).reset_index(drop=True)\n\nfeature_cols = [\n    \"mom_21\", \"mom_63\", \"mom_126\", \"mom_252\",\n    \"vol_21\", \"vol_63\",\n    \"rsi_14\",\n    \"dv_rank\",\n]\nlabel_col = \"fwd_ret_21\"\n\nX = model_panel[feature_cols]\ny = model_panel[label_col]\n\n# label_horizon=21 tells the splitter to purge training rows whose 21-session\n# forward-return window overlaps the validation window, and (via the NYSE\n# calendar default) to interpret \"21\" as trading sessions, not calendar days.\ncv = WalkForwardCV(n_splits=5, label_horizon=21, timestamp_col=\"timestamp\", expanding=True)\n\noof_records = []\nfor fold_i, (train_idx, val_idx) in enumerate(cv.split(model_panel, y)):\n    model = lgb.LGBMRegressor(\n        n_estimators=200,\n        learning_rate=0.05,\n        num_leaves=31,\n        min_child_samples=50,\n        random_state=42,\n        verbosity=-1,\n    )\n    model.fit(X.iloc[train_idx], y.iloc[train_idx])\n    preds = model.predict(X.iloc[val_idx])\n\n    fold_df = model_panel.iloc[val_idx][[\"symbol\", \"timestamp\", label_col]].copy()\n    fold_df[\"prediction\"] = preds\n    fold_df[\"fold\"] = fold_i\n    oof_records.append(fold_df)\n\n    train_span = (\n        model_panel.iloc[train_idx][\"timestamp\"].min(),\n        model_panel.iloc[train_idx][\"timestamp\"].max(),\n    )\n    val_span = (\n        model_panel.iloc[val_idx][\"timestamp\"].min(),\n        model_panel.iloc[val_idx][\"timestamp\"].max(),\n    )\n    print(\n        f\"Fold {fold_i}: train n={len(train_idx):,} {train_span[0].date()}..{train_span[1].date()}  \"\n        f\"val n={len(val_idx):,} {val_span[0].date()}..{val_span[1].date()}\"\n    )\n\noof = pd.concat(oof_records, ignore_index=True)\noof.to_parquet(\"analysis/oof_predictions.parquet\")\nprint(\"\\nSaved analysis/oof_predictions.parquet, shape:\", oof.shape)\nprint(oof.head())\n"
+}
+
+--- USER ---
+[tool_result]
+File created successfully at: /work/analysis/step4_train.py (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step4_train.py",
+  "description": "Run step 4 LightGBM training with walk-forward CV"
+}
+
+--- USER ---
+[tool_result (error)]
+Exit code 1
+Traceback (most recent call last):
+  File "/work/analysis/step4_train.py", line 28, in <module>
+    for fold_i, (train_idx, val_idx) in enumerate(cv.split(model_panel, y)):
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/walk_forward.py", line 767, in split
+    for fold_i, (train_idx, val_idx) in enumerate(inner):
+                                        ^^^^^^^^^^^^^^^^
+  File "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/splitters/walk_forward.py", line 1233, in _split_by_calendar
+    clean_train_indices = apply_purging_and_embargo(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/purging.py", line 383, in apply_purging_and_embargo
+    timestamps, test_start, test_end = _normalize_timezone_aware_inputs(
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/purging.py", line 32, in _normalize_timezone_aware_inputs
+    raise ValueError("timestamps must be timezone-aware")
+ValueError: timestamps must be timezone-aware
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Edit]
+{
+  "replace_all": false,
+  "file_path": "/work/analysis/step4_train.py",
+  "old_string": "model_panel = pd.read_parquet(\"analysis/model_panel.parquet\")\nmodel_panel = model_panel.sort_values([\"timestamp\", \"symbol\"]).reset_index(drop=True)",
+  "new_string": "model_panel = pd.read_parquet(\"analysis/model_panel.parquet\")\nmodel_panel = model_panel.sort_values([\"timestamp\", \"symbol\"]).reset_index(drop=True)\n# Purging/embargo require timezone-aware timestamps; sessions are tz-naive\n# calendar dates, so UTC is an arbitrary but harmless choice here.\nmodel_panel[\"timestamp\"] = model_panel[\"timestamp\"].dt.tz_localize(\"UTC\")"
+}
+
+--- USER ---
+[tool_result]
+The file /work/analysis/step4_train.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step4_train.py",
+  "description": "Re-run step 4 training script after tz fix"
+}
+
+--- USER ---
+[tool_result]
+Fold 0: train n=17,242 2008-01-03..2010-11-23  val n=18,775 2010-12-27..2013-12-18
+Fold 1: train n=36,017 2008-01-03..2013-11-18  val n=18,775 2013-12-19..2016-12-12
+Fold 2: train n=54,792 2008-01-03..2016-11-10  val n=18,775 2016-12-13..2019-12-06
+Fold 3: train n=73,567 2008-01-03..2019-11-06  val n=18,775 2019-12-09..2022-11-30
+Fold 4: train n=92,342 2008-01-03..2022-10-31  val n=18,775 2022-12-01..2025-11-28
+
+Saved analysis/oof_predictions.parquet, shape: (93875, 5)
+  symbol                 timestamp  fwd_ret_21  prediction  fold
+0    DIA 2010-12-27 00:00:00+00:00    0.038714    0.014866     0
+1    EEM 2010-12-27 00:00:00+00:00    0.011521    0.017213     0
+2    EFA 2010-12-27 00:00:00+00:00    0.043923    0.011500     0
+3    EWJ 2010-12-27 00:00:00+00:00    0.029685    0.001588     0
+4    FXI 2010-12-27 00:00:00+00:00    0.012691    0.014213     0
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+## Step 4 done — why not a random split
+
+Trained 5 expanding-window LightGBM folds (`WalkForwardCV(n_splits=5, label_horizon=21, timestamp_col="timestamp")`). Each fold's train window ends roughly a month before validation starts — that's the `label_horizon=21` purge automatically removing the training rows whose forward-return window would otherwise overlap the validation period.
+
+A random train/test split would be wrong here for two compounding reasons:
+1. **The label itself overlaps across time.** `fwd_ret_21` at date *t* and at date *t+1* share 20 of their 21 forward daily returns. A random split would scatter these overlapping-label rows across train and validation, so a training row could directly leak the realized returns that make up a validation row's label — not just correlation, near-duplication.
+2. **Live deployment never has future data to train on.** A random split lets the model train on rows dated after the ones it's tested on, which can't happen when the model is actually used going forward. `WalkForwardCV` keeps train always-before-validation and purges the overlap window, so the CV score reflects what the model could actually know at prediction time.
+
+## Step 5 — code before running
+
+```python
+from ml4t.diagnostic.metrics import cross_sectional_ic_series, compute_ic_hac_stats
+
+oof = pd.read_parquet("analysis/oof_predictions.parquet")
+
+ic_series = cross_sectional_ic_series(
+    oof, oof,
+    pred_col="prediction", ret_col="fwd_ret_21",
+    date_col="timestamp", entity_col="symbol",
+    method="spearman",
+)
+
+stats = compute_ic_hac_stats(ic_series, ic_col="ic", label_horizon=21)
+
+print(f"n periods:        {stats['n_periods']}")
+print(f"mean IC:           {stats['mean_ic']:.4f}")
+print(f"naive t-stat:      {stats['naive_t_stat']:.2f}")
+print(f"HAC t-stat:        {stats['t_stat']:.2f}   (effective_lags={stats['effective_lags']})")
+```
+
+Two things I deliberately got right here, since this is the step where a bug gives a good-looking wrong number silently:
+
+- **`entity_col="symbol"` is mandatory.** I'm passing the same `oof` frame as both `predictions` and `returns`. Without `entity_col`, the join inside `cross_sectional_ic_series` has only `date_col` as a key, and since multiple symbols share each date, that's a Cartesian join — it would still run and produce a plausible-looking (wrong) IC series instead of erroring.
+- **`label_horizon=21` is mandatory on `compute_ic_hac_stats`, not just on the CV splitter.** The label is a 21-session forward return, so the daily IC series inherits ~20/21 overlap-induced autocorrelation by construction. If I omit `label_horizon`, the function falls back to the generic Newey-West bandwidth (`floor(4*(T/100)^(2/9))`, ≈4-5 lags here) instead of the ≥20 lags this overlap actually requires — under-correcting the standard error and reporting an artificially significant HAC t-stat.
+
+Why I expect naive and HAC t-stats to differ: the naive t-stat treats each day's IC as an independent observation. Because the label horizon is 21 sessions, consecutive days' ICs are built from almost the same forward-return data and are strongly positively autocorrelated — that inflates the *effective* variance of the mean IC estimate without inflating the naive standard error (which assumes independence). HAC/Newey-West with `label_horizon=21` lags absorbs that autocorrelation into the standard error, so I expect `hac_se > naive_se` and correspondingly `|t_stat| < |naive_t_stat|`.
+
+Go ahead and run it?
+
+==============================================================================
+RESULT
+## Step 4 done — why not a random split
+
+Trained 5 expanding-window LightGBM folds (`WalkForwardCV(n_splits=5, label_horizon=21, timestamp_col="timestamp")`). Each fold's train window ends roughly a month before validation starts — that's the `label_horizon=21` purge automatically removing the training rows whose forward-return window would otherwise overlap the validation period.
+
+A random train/test split would be wrong here for two compounding reasons:
+1. **The label itself overlaps across time.** `fwd_ret_21` at date *t* and at date *t+1* share 20 of their 21 forward daily returns. A random split would scatter these overlapping-label rows across train and validation, so a training row could directly leak the realized returns that make up a validation row's label — not just correlation, near-duplication.
+2. **Live deployment never has future data to train on.** A random split lets the model train on rows dated after the ones it's tested on, which can't happen when the model is actually used going forward. `WalkForwardCV` keeps train always-before-validation and purges the overlap window, so the CV score reflects what the model could actually know at prediction time.
+
+## Step 5 — code before running
+
+```python
+from ml4t.diagnostic.metrics import cross_sectional_ic_series, compute_ic_hac_stats
+
+oof = pd.read_parquet("analysis/oof_predictions.parquet")
+
+ic_series = cross_sectional_ic_series(
+    oof, oof,
+    pred_col="prediction", ret_col="fwd_ret_21",
+    date_col="timestamp", entity_col="symbol",
+    method="spearman",
+)
+
+stats = compute_ic_hac_stats(ic_series, ic_col="ic", label_horizon=21)
+
+print(f"n periods:        {stats['n_periods']}")
+print(f"mean IC:           {stats['mean_ic']:.4f}")
+print(f"naive t-stat:      {stats['naive_t_stat']:.2f}")
+print(f"HAC t-stat:        {stats['t_stat']:.2f}   (effective_lags={stats['effective_lags']})")
+```
+
+Two things I deliberately got right here, since this is the step where a bug gives a good-looking wrong number silently:
+
+- **`entity_col="symbol"` is mandatory.** I'm passing the same `oof` frame as both `predictions` and `returns`. Without `entity_col`, the join inside `cross_sectional_ic_series` has only `date_col` as a key, and since multiple symbols share each date, that's a Cartesian join — it would still run and produce a plausible-looking (wrong) IC series instead of erroring.
+- **`label_horizon=21` is mandatory on `compute_ic_hac_stats`, not just on the CV splitter.** The label is a 21-session forward return, so the daily IC series inherits ~20/21 overlap-induced autocorrelation by construction. If I omit `label_horizon`, the function falls back to the generic Newey-West bandwidth (`floor(4*(T/100)^(2/9))`, ≈4-5 lags here) instead of the ≥20 lags this overlap actually requires — under-correcting the standard error and reporting an artificially significant HAC t-stat.
+
+Why I expect naive and HAC t-stats to differ: the naive t-stat treats each day's IC as an independent observation. Because the label horizon is 21 sessions, consecutive days' ICs are built from almost the same forward-return data and are strongly positively autocorrelated — that inflates the *effective* variance of the mean IC estimate without inflating the naive standard error (which assumes independence). HAC/Newey-West with `label_horizon=21` lags absorbs that autocorrelation into the standard error, so I expect `hac_se > naive_se` and correspondingly `|t_stat| < |naive_t_stat|`.
+
+Go ahead and run it?
+==============================================================================
+==============================================================================
+SESSION INIT
+  model: claude-sonnet-5
+  cwd: /work
+  permissionMode: bypassPermissions
+  apiKeySource: none
+  tools: ['Task', 'Bash', 'CronCreate', 'CronDelete', 'CronList', 'Edit', 'EnterWorktree', 'ExitWorktree', 'ListAgents', 'NotebookEdit', 'Read', 'RemoteTrigger', 'ReportFindings', 'ScheduleWakeup', 'SendMessage', 'Skill', 'TaskOutput', 'TaskStop', 'ToolSearch', 'WebFetch', 'WebSearch', 'Workflow', 'Write']
+  slash_commands: ['deep-research', 'dataviz', 'update-config', 'verify', 'debug', 'code-review', 'simplify', 'batch', 'fewer-permission-prompts', 'doctor', 'loop', 'schedule', 'claude-api', 'workflow-authoring', 'run', 'run-skill-generator', 'agents', 'auto-mode-setup', 'autocompact', 'clear', 'color', 'compact', 'config', 'output-style', 'context', 'effort', 'fast', 'heapdump', 'init', 'mcp', 'model', '__remote-workflow', 'workflow-launch-exec', 'reload-plugins', 'reload-skills', 'rename', 'security-review', 'usage', 'insights', 'recap', 'goal', 'list-agents', 'team-onboarding']
+==============================================================================
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/analysis/step5_evaluate.py",
+  "content": "\"\"\"Step 5: evaluate OOF predictions with cross-sectional IC + HAC correction.\"\"\"\n\nimport pandas as pd\nfrom ml4t.diagnostic.metrics import cross_sectional_ic_series, compute_ic_hac_stats\n\noof = pd.read_parquet(\"analysis/oof_predictions.parquet\")\n\nic_series = cross_sectional_ic_series(\n    oof, oof,\n    pred_col=\"prediction\", ret_col=\"fwd_ret_21\",\n    date_col=\"timestamp\", entity_col=\"symbol\",\n    method=\"spearman\",\n)\n\nprint(f\"IC series: {len(ic_series)} dates, \"\n      f\"{ic_series['ic'].isna().sum()} undefined (< min_obs or all-tied)\")\nprint(ic_series.head())\nprint()\n\nstats = compute_ic_hac_stats(ic_series, ic_col=\"ic\", label_horizon=21)\n\nprint(f\"n periods:        {stats['n_periods']}\")\nprint(f\"mean IC:          {stats['mean_ic']:.4f}\")\nprint(f\"naive SE:         {stats['naive_se']:.5f}\")\nprint(f\"HAC SE:           {stats['hac_se']:.5f}\")\nprint(f\"naive t-stat:     {stats['naive_t_stat']:.2f}\")\nprint(f\"HAC t-stat:       {stats['t_stat']:.2f}   (effective_lags={stats['effective_lags']})\")\nprint(f\"HAC p-value:      {stats['p_value']:.4g}\")\n"
+}
+
+--- USER ---
+[tool_result]
+File created successfully at: /work/analysis/step5_evaluate.py (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "source .venv/bin/activate && python analysis/step5_evaluate.py",
+  "description": "Run step 5 IC and HAC evaluation script"
+}
+
+--- USER ---
+[tool_result]
+IC series: 3755 dates, 0 undefined (< min_obs or all-tied)
+                  timestamp  n_obs        ic
+0 2010-12-27 00:00:00+00:00     25 -0.315385
+1 2010-12-28 00:00:00+00:00     25 -0.291538
+2 2010-12-29 00:00:00+00:00     25 -0.401538
+3 2010-12-30 00:00:00+00:00     25 -0.200769
+4 2010-12-31 00:00:00+00:00     25 -0.208462
+
+n periods:        3755
+mean IC:          0.0285
+naive SE:         0.00467
+HAC SE:           0.01418
+naive t-stat:     6.10
+HAC t-stat:       2.01   (effective_lags=20)
+HAC p-value:      0.04451
+
+--- ASSISTANT ---
+## Results
+
+| | value |
+|---|---|
+| Panel survival (step 1) | 117,460 / 119,408 rows = **98.4%** eligible |
+| Modeling rows after warm-up/tail drop | 111,642 |
+| Mean cross-sectional IC | **0.0285** (Spearman, 3,755 daily periods) |
+| Naive t-stat | **6.10** |
+| HAC t-stat (label_horizon=21) | **2.01** (p=0.045, effective_lags=20) |
+
+**Step 1** — only HYG, LQD, VTV, VUG lose rows, and only in their early, pre-liquidity years (matches the README: these are the newer/smaller ETFs on the list).
+
+**Step 3/4** — label built on full per-symbol history before the eligibility filter, walk-forward CV with `label_horizon=21` purging ~1 month at each fold boundary (visible in the fold spans printed earlier).
+
+**Step 5 — why the t-stats differ by 3x**: the naive t-stat (6.10) assumes each of the 3,755 daily IC values is an independent observation. It isn't: the label is a 21-session forward return, so IC on day *t* and IC on day *t+1* are computed from labels that share 20 of 21 underlying daily returns — strongly positively autocorrelated. That autocorrelation doesn't show up in the naive standard error (0.0047), which just divides the IC's cross-sectional-day standard deviation by √3755 as if every day were fresh information. The HAC/Newey-West correction, using `effective_lags=20` (exactly `label_horizon - 1`, as documented), inflates the standard error to 0.0142 — about 3x larger — because it accounts for the fact that ~21 consecutive days of "signal" are really carrying the information content of roughly one independent observation, not 21. The corrected t-stat of 2.01 is still on the right side of significance (p=0.045) but far closer to the edge than the naive number suggests, which is exactly the failure mode this workflow is designed to catch: a naive evaluation would have overstated confidence in the signal by a factor of ~3.
+
+All intermediate artifacts are in `analysis/` (`model_panel.parquet`, `oof_predictions.parquet`) if you want to inspect further or push on hyperparameters/feature set next.
+
+==============================================================================
+RESULT
+## Results
+
+| | value |
+|---|---|
+| Panel survival (step 1) | 117,460 / 119,408 rows = **98.4%** eligible |
+| Modeling rows after warm-up/tail drop | 111,642 |
+| Mean cross-sectional IC | **0.0285** (Spearman, 3,755 daily periods) |
+| Naive t-stat | **6.10** |
+| HAC t-stat (label_horizon=21) | **2.01** (p=0.045, effective_lags=20) |
+
+**Step 1** — only HYG, LQD, VTV, VUG lose rows, and only in their early, pre-liquidity years (matches the README: these are the newer/smaller ETFs on the list).
+
+**Step 3/4** — label built on full per-symbol history before the eligibility filter, walk-forward CV with `label_horizon=21` purging ~1 month at each fold boundary (visible in the fold spans printed earlier).
+
+**Step 5 — why the t-stats differ by 3x**: the naive t-stat (6.10) assumes each of the 3,755 daily IC values is an independent observation. It isn't: the label is a 21-session forward return, so IC on day *t* and IC on day *t+1* are computed from labels that share 20 of 21 underlying daily returns — strongly positively autocorrelated. That autocorrelation doesn't show up in the naive standard error (0.0047), which just divides the IC's cross-sectional-day standard deviation by √3755 as if every day were fresh information. The HAC/Newey-West correction, using `effective_lags=20` (exactly `label_horizon - 1`, as documented), inflates the standard error to 0.0142 — about 3x larger — because it accounts for the fact that ~21 consecutive days of "signal" are really carrying the information content of roughly one independent observation, not 21. The corrected t-stat of 2.01 is still on the right side of significance (p=0.045) but far closer to the edge than the naive number suggests, which is exactly the failure mode this workflow is designed to catch: a naive evaluation would have overstated confidence in the signal by a factor of ~3.
+
+All intermediate artifacts are in `analysis/` (`model_panel.parquet`, `oof_predictions.parquet`) if you want to inspect further or push on hyperparameters/feature set next.
+==============================================================================
+==============================================================================
+SESSION INIT
+  model: claude-sonnet-5
+  cwd: /work
+  permissionMode: bypassPermissions
+  apiKeySource: none
+  tools: ['Task', 'Bash', 'CronCreate', 'CronDelete', 'CronList', 'Edit', 'EnterWorktree', 'ExitWorktree', 'ListAgents', 'NotebookEdit', 'Read', 'RemoteTrigger', 'ReportFindings', 'ScheduleWakeup', 'SendMessage', 'Skill', 'TaskOutput', 'TaskStop', 'ToolSearch', 'WebFetch', 'WebSearch', 'Workflow', 'Write']
+  slash_commands: ['deep-research', 'dataviz', 'update-config', 'verify', 'debug', 'code-review', 'simplify', 'batch', 'fewer-permission-prompts', 'doctor', 'loop', 'schedule', 'claude-api', 'workflow-authoring', 'run', 'run-skill-generator', 'agents', 'auto-mode-setup', 'autocompact', 'clear', 'color', 'compact', 'config', 'output-style', 'context', 'effort', 'fast', 'heapdump', 'init', 'mcp', 'model', '__remote-workflow', 'workflow-launch-exec', 'reload-plugins', 'reload-skills', 'rename', 'security-review', 'usage', 'insights', 'recap', 'goal', 'list-agents', 'team-onboarding']
+==============================================================================
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+All five steps are already complete and reported — there's nothing queued that needs a go-ahead right now. Did you want me to:
+
+- push further on hyperparameters or the feature set,
+- dig into anything specific in the results (e.g., IC by fold, per-symbol breakdown),
+- or something else?
+
+Let me know which direction and I'll proceed.
+
+==============================================================================
+RESULT
+All five steps are already complete and reported — there's nothing queued that needs a go-ahead right now. Did you want me to:
+
+- push further on hyperparameters or the feature set,
+- dig into anything specific in the results (e.g., IC by fold, per-symbol breakdown),
+- or something else?
+
+Let me know which direction and I'll proceed.
+==============================================================================

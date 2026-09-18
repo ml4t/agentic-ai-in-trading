@@ -1,0 +1,946 @@
+==============================================================================
+SESSION INIT
+  model: claude-sonnet-5
+  cwd: /work
+  permissionMode: bypassPermissions
+  apiKeySource: none
+  tools: ['Task', 'Bash', 'CronCreate', 'CronDelete', 'CronList', 'Edit', 'EnterWorktree', 'ExitWorktree', 'ListAgents', 'NotebookEdit', 'Read', 'RemoteTrigger', 'ReportFindings', 'ScheduleWakeup', 'SendMessage', 'Skill', 'TaskOutput', 'TaskStop', 'ToolSearch', 'WebFetch', 'WebSearch', 'Workflow', 'Write']
+  slash_commands: ['deep-research', 'dataviz', 'update-config', 'verify', 'debug', 'code-review', 'simplify', 'batch', 'fewer-permission-prompts', 'doctor', 'loop', 'schedule', 'claude-api', 'workflow-authoring', 'run', 'run-skill-generator', 'agents', 'auto-mode-setup', 'autocompact', 'clear', 'color', 'compact', 'config', 'output-style', 'context', 'effort', 'fast', 'heapdump', 'init', 'mcp', 'model', '__remote-workflow', 'workflow-launch-exec', 'reload-plugins', 'reload-skills', 'rename', 'security-review', 'usage', 'insights', 'recap', 'goal', 'list-agents', 'team-onboarding']
+==============================================================================
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find /work -maxdepth 3 -not -path '*/.git*' | sort",
+  "description": "List repo contents up to 3 levels deep"
+}
+
+--- USER ---
+[tool_result]
+/work
+/work/.venv
+/work/.venv/.lock
+/work/.venv/CACHEDIR.TAG
+/work/.venv/bin
+/work/.venv/bin/activate
+/work/.venv/bin/activate.bat
+/work/.venv/bin/activate.csh
+/work/.venv/bin/activate.fish
+/work/.venv/bin/activate.nu
+/work/.venv/bin/activate.ps1
+/work/.venv/bin/activate_this.py
+/work/.venv/bin/cffi-gen-src
+/work/.venv/bin/curl-cffi
+/work/.venv/bin/deactivate.bat
+/work/.venv/bin/ecal
+/work/.venv/bin/f2py
+/work/.venv/bin/idna
+/work/.venv/bin/normalizer
+/work/.venv/bin/numba
+/work/.venv/bin/numpy-config
+/work/.venv/bin/pwiz
+/work/.venv/bin/pwmigrate
+/work/.venv/bin/pydoc.bat
+/work/.venv/bin/python
+/work/.venv/bin/python3
+/work/.venv/bin/python3.12
+/work/.venv/bin/tqdm
+/work/.venv/bin/websockets
+/work/.venv/lib
+/work/.venv/lib/python3.12
+/work/.venv/lib64
+/work/.venv/pyvenv.cfg
+/work/README.md
+/work/data
+/work/data/README.md
+/work/data/eligibility.csv
+/work/data/prices.parquet
+/work/pyproject.toml
+/work/scripts
+/work/scripts/fetch_prices.py
+/work/uv.lock
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/README.md"
+}
+
+--- USER ---
+[tool_result]
+1	# Agentic AI in Trading
+2	
+3	Materials for the opening workshop of QuantInsti's Algorithmic Trading
+4	Conference 2026, Thursday 24 September.
+5	
+6	**Status: under construction.** The notebook and the run artifacts land here
+7	once the runs behind them are captured and checked.
+8	
+9	## What is here now
+10	
+11	A price panel and nothing built on top of it.
+12	
+13	```bash
+14	uv sync                              # pinned dependencies, Python 3.12
+15	uv run python scripts/fetch_prices.py
+16	```
+17	
+18	The fetch downloads daily OHLCV for 25 liquid US-listed ETFs from Yahoo
+19	Finance, 2007-01-01 to 2025-12-31, and writes `data/prices.parquet` and
+20	`data/eligibility.csv`. Both are gitignored: no price data ships with this
+21	repository. `data/README.md` describes the two files.
+22	
+23	## What will be here
+24	
+25	- `notebooks/` - one notebook, opens in Colab, runs start to finish in a
+26	  browser. It fetches its own price data, so there is nothing to install and no
+27	  API key of any kind.
+28	- `briefs/` - the two specifications handed to the coding agent in the session,
+29	  exactly as given.
+30	- `runs/` - what the agent did with each one: the transcript, the code it wrote,
+31	  and the results.
+32	- `CHECKLIST.md` - what to check before trusting a research component an agent
+33	  wrote for you.
+34	
+35	## Requirements
+36	
+37	A browser and a Google account for the notebook. For a local checkout, Python
+38	3.12 and [uv](https://docs.astral.sh/uv/).
+39	
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/data/README.md"
+}
+
+--- USER ---
+[tool_result]
+1	# Data
+2	
+3	Nothing in this directory is committed. `scripts/fetch_prices.py` downloads the
+4	prices from Yahoo Finance and writes both files below.
+5	
+6	## `prices.parquet`
+7	
+8	Daily OHLCV for 25 liquid US-listed ETFs, 2007-01-01 to 2025-12-31, adjusted for
+9	splits and dividends. Long format, one row per (symbol, session):
+10	
+11	| Column | Type | Meaning |
+12	|---|---|---|
+13	| `timestamp` | datetime64, tz-naive | Session date |
+14	| `open`, `high`, `low`, `close` | float64 | Adjusted prices |
+15	| `volume` | float64 | Shares traded |
+16	| `symbol` | str | Ticker |
+17	
+18	Coverage is not uniform. SPY, QQQ and the sector SPDRs trade across the whole
+19	window; HYG starts in April 2007.
+20	
+21	The 25 symbols were chosen in 2026, from ETFs that are liquid today. Which
+22	tickers are on the list at all therefore reflects hindsight.
+23	
+24	## `eligibility.csv`
+25	
+26	Point-in-time membership, one row per (symbol, year) the symbol was eligible
+27	for: `symbol, eligible_year`.
+28	
+29	A symbol is eligible for calendar year Y when, over year Y-1, its average daily
+30	dollar volume was at least $10M across at least 200 sessions. The threshold is
+31	not inflation-adjusted. A symbol absent from a year has no row for that year.
+32	
+
+--- ASSISTANT ---
+[tool_use: Read]
+{
+  "file_path": "/work/scripts/fetch_prices.py"
+}
+
+--- USER ---
+[tool_result]
+1	"""Fetch the ETF price panel this repository works on.
+2	
+3	Prices are downloaded from Yahoo Finance at run time and written to `data/`,
+4	which is gitignored: no price data ships with this repository.
+5	
+6	    python scripts/fetch_prices.py
+7	
+8	Writes `data/prices.parquet` (long OHLCV panel) and `data/eligibility.csv`
+9	(point-in-time membership). Both are described in `data/README.md`.
+10	"""
+11	
+12	from __future__ import annotations
+13	
+14	import argparse
+15	import sys
+16	import time
+17	from pathlib import Path
+18	
+19	import pandas as pd
+20	import yfinance as yf
+21	
+22	# 25 liquid US-listed ETFs, all trading before the start date below.
+23	UNIVERSE: tuple[str, ...] = (
+24	    "SPY",
+25	    "QQQ",
+26	    "IWM",
+27	    "DIA",
+28	    "MDY",  # US equity, broad
+29	    "VTV",
+30	    "VUG",  # US equity, style
+31	    "XLB",
+32	    "XLE",
+33	    "XLF",
+34	    "XLI",
+35	    "XLK",  # US sectors
+36	    "XLP",
+37	    "XLU",
+38	    "XLV",
+39	    "XLY",
+40	    "EFA",
+41	    "EWJ",  # international developed
+42	    "EEM",
+43	    "FXI",  # emerging markets
+44	    "TLT",
+45	    "IEF",
+46	    "LQD",
+47	    "HYG",  # fixed income
+48	    "GLD",  # commodities
+49	)
+50	
+51	# One warm-up year is downloaded ahead of the panel so that the first panel year
+52	# has a prior year to establish eligibility from. Warm-up rows are not written.
+53	FETCH_START = "2006-01-01"
+54	PANEL_START = "2007-01-01"
+55	END = "2025-12-31"
+56	
+57	# Point-in-time eligibility: a symbol is eligible for calendar year Y when its
+58	# average daily dollar volume over year Y-1 cleared this threshold on at least
+59	# this many sessions. Not inflation-adjusted.
+60	ADV_THRESHOLD_USD = 10_000_000
+61	MIN_SESSIONS_PRIOR_YEAR = 200
+62	
+63	DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+64	
+65	
+66	def download(symbols: tuple[str, ...], start: str, end: str) -> pd.DataFrame:
+67	    """Download daily OHLCV and return a long panel."""
+68	    raw = yf.download(
+69	        list(symbols),
+70	        start=start,
+71	        end=end,
+72	        auto_adjust=True,
+73	        progress=False,
+74	        group_by="ticker",
+75	        threads=True,
+76	    )
+77	    if raw.empty:
+78	        raise RuntimeError("Yahoo Finance returned no rows")
+79	
+80	    frames = []
+81	    for symbol in symbols:
+82	        if symbol not in raw.columns.get_level_values(0):
+83	            print(f"  warning: {symbol} returned no data", file=sys.stderr)
+84	            continue
+85	        frame = raw[symbol].dropna(how="all").copy()
+86	        frame.columns = [c.lower() for c in frame.columns]
+87	        frame["symbol"] = symbol
+88	        frames.append(frame.reset_index().rename(columns={"Date": "timestamp"}))
+89	
+90	    panel = pd.concat(frames, ignore_index=True)
+91	    panel = panel[["timestamp", "open", "high", "low", "close", "volume", "symbol"]]
+92	    panel["timestamp"] = pd.to_datetime(panel["timestamp"]).dt.tz_localize(None)
+93	    return panel.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+94	
+95	
+96	def build_eligibility(panel: pd.DataFrame) -> pd.DataFrame:
+97	    """Derive (symbol, eligible_year) rows from the prior year's dollar volume."""
+98	    frame = panel.assign(
+99	        year=panel["timestamp"].dt.year,
+100	        dollar_volume=panel["close"] * panel["volume"],
+101	    )
+102	    by_year = frame.groupby(["symbol", "year"])["dollar_volume"].agg(["mean", "size"])
+103	    qualifies = (by_year["mean"] >= ADV_THRESHOLD_USD) & (
+104	        by_year["size"] >= MIN_SESSIONS_PRIOR_YEAR
+105	    )
+106	    eligible = by_year[qualifies].reset_index()[["symbol", "year"]]
+107	    eligible["eligible_year"] = eligible["year"] + 1
+108	    return (
+109	        eligible[["symbol", "eligible_year"]]
+110	        .sort_values(["symbol", "eligible_year"])
+111	        .reset_index(drop=True)
+112	    )
+113	
+114	
+115	def main() -> int:
+116	    parser = argparse.ArgumentParser(description=__doc__)
+117	    parser.add_argument("--start", default=PANEL_START)
+118	    parser.add_argument("--end", default=EN
+... [truncated]
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "cat /work/data/eligibility.csv | head -50; echo \"---\"; wc -l /work/data/eligibility.csv",
+  "description": "Peek at eligibility csv"
+}
+
+--- USER ---
+[tool_result]
+symbol,eligible_year
+DIA,2007
+DIA,2008
+DIA,2009
+DIA,2010
+DIA,2011
+DIA,2012
+DIA,2013
+DIA,2014
+DIA,2015
+DIA,2016
+DIA,2017
+DIA,2018
+DIA,2019
+DIA,2020
+DIA,2021
+DIA,2022
+DIA,2023
+DIA,2024
+DIA,2025
+DIA,2026
+EEM,2007
+EEM,2008
+EEM,2009
+EEM,2010
+EEM,2011
+EEM,2012
+EEM,2013
+EEM,2014
+EEM,2015
+EEM,2016
+EEM,2017
+EEM,2018
+EEM,2019
+EEM,2020
+EEM,2021
+EEM,2022
+EEM,2023
+EEM,2024
+EEM,2025
+EEM,2026
+EFA,2007
+EFA,2008
+EFA,2009
+EFA,2010
+EFA,2011
+EFA,2012
+EFA,2013
+EFA,2014
+EFA,2015
+---
+493 /work/data/eligibility.csv
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python -c \"\nimport pandas as pd\ndf = pd.read_parquet('data/prices.parquet')\nprint(df.shape)\nprint(df.dtypes)\nprint(df.head())\nprint(df.tail())\n\"\n",
+  "description": "Inspect prices parquet structure"
+}
+
+--- USER ---
+[tool_result]
+(119408, 7)
+timestamp    datetime64[ns]
+open                float64
+high                float64
+low                 float64
+close               float64
+volume              float64
+symbol               object
+dtype: object
+   timestamp       open       high        low      close      volume symbol
+0 2007-01-03  81.270682  81.608333  80.439530  80.822639  11525000.0    DIA
+1 2007-01-04  80.829127  81.134310  80.446017  80.958992  10318700.0    DIA
+2 2007-01-05  80.822611  80.842090  80.205740  80.348595   9389000.0    DIA
+3 2007-01-08  80.433012  80.770663  80.030423  80.608330   8092400.0    DIA
+4 2007-01-09  80.738222  80.887571  80.140836  80.562904   7438700.0    DIA
+        timestamp        open        high  ...       close     volume  symbol
+119403 2025-12-23  121.782201  122.160690  ...  121.682602  9766400.0     XLY
+119404 2025-12-24  121.792161  122.140763  ...  122.100922  2250000.0     XLY
+119405 2025-12-26  121.941569  122.290171  ...  121.563087  4197000.0     XLY
+119406 2025-12-29  121.075033  121.075033  ...  120.367867  6535400.0     XLY
+119407 2025-12-30  120.128824  120.298144  ...  119.879822  4180500.0     XLY
+
+[5 rows x 7 columns]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "cat /work/pyproject.toml",
+  "description": "Check pinned dependencies"
+}
+
+--- USER ---
+[tool_result]
+[project]
+name = "agentic-ai-in-trading"
+version = "0.1.0"
+description = "Materials for the Agentic AI in Trading workshop, QuantInsti ATC 2026"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ml4t-diagnostic==0.1.5",
+    "ml4t-engineer==0.1.4",
+    "lightgbm==4.6.0",
+    "pandas==2.3.3",
+    "polars==1.35.2",
+    "numpy==2.3.4",
+    "pyarrow==22.0.0",
+    "scikit-learn==1.7.2",
+    "statsmodels==0.14.6",
+    "yfinance==1.7.0",
+]
+
+[dependency-groups]
+dev = ["ruff==0.14.5"]
+
+[tool.ruff]
+line-length = 100
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python -c \"\nimport pandas as pd\ndf = pd.read_parquet('data/prices.parquet')\nprint('symbols:', sorted(df.symbol.unique()))\nprint()\ng = df.groupby('symbol')['timestamp'].agg(['min','max','count'])\nprint(g)\n\"\n",
+  "description": "Check per-symbol date coverage"
+}
+
+--- USER ---
+[tool_result]
+symbols: ['DIA', 'EEM', 'EFA', 'EWJ', 'FXI', 'GLD', 'HYG', 'IEF', 'IWM', 'LQD', 'MDY', 'QQQ', 'SPY', 'TLT', 'VTV', 'VUG', 'XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY']
+
+              min        max  count
+symbol                             
+DIA    2007-01-03 2025-12-30   4779
+EEM    2007-01-03 2025-12-30   4779
+EFA    2007-01-03 2025-12-30   4779
+EWJ    2007-01-03 2025-12-30   4779
+FXI    2007-01-03 2025-12-30   4779
+GLD    2007-01-03 2025-12-30   4779
+HYG    2007-04-11 2025-12-30   4712
+IEF    2007-01-03 2025-12-30   4779
+IWM    2007-01-03 2025-12-30   4779
+LQD    2007-01-03 2025-12-30   4779
+MDY    2007-01-03 2025-12-30   4779
+QQQ    2007-01-03 2025-12-30   4779
+SPY    2007-01-03 2025-12-30   4779
+TLT    2007-01-03 2025-12-30   4779
+VTV    2007-01-03 2025-12-30   4779
+VUG    2007-01-03 2025-12-30   4779
+XLB    2007-01-03 2025-12-30   4779
+XLE    2007-01-03 2025-12-30   4779
+XLF    2007-01-03 2025-12-30   4779
+XLI    2007-01-03 2025-12-30   4779
+XLK    2007-01-03 2025-12-30   4779
+XLP    2007-01-03 2025-12-30   4779
+XLU    2007-01-03 2025-12-30   4779
+XLV    2007-01-03 2025-12-30   4779
+XLY    2007-01-03 2025-12-30   4779
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python -c \"\nimport ml4t_diagnostic, ml4t_engineer\nprint(ml4t_diagnostic.__file__)\nprint(ml4t_engineer.__file__)\n\"\nfind /work/.venv -iname \"*ml4t*\" -maxdepth 5 -type d\n",
+  "description": "Locate ml4t packages"
+}
+
+--- USER ---
+[tool_result]
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+ModuleNotFoundError: No module named 'ml4t_diagnostic'
+/work/.venv/lib/python3.12/site-packages/ml4t_specs-0.1.4.dist-info
+/work/.venv/lib/python3.12/site-packages/ml4t
+/work/.venv/lib/python3.12/site-packages/ml4t_diagnostic-0.1.5.dist-info
+/work/.venv/lib/python3.12/site-packages/ml4t_engineer-0.1.4.dist-info
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "find /work/.venv/lib/python3.12/site-packages/ml4t -maxdepth 3 | sort",
+  "description": "List ml4t package structure"
+}
+
+--- USER ---
+[tool_result]
+/work/.venv/lib/python3.12/site-packages/ml4t
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/api.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/adapter.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/backends/polars_backend.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/cache.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/decorators.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/caching/smart_cache.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/README.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/barrier_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/base.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/event_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/feature_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/multi_signal_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/portfolio_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/report_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/sharpe_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/signal_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/trade_analysis_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/validated_cv_config.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/config/validation.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/numba_utils.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/purging.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/core/sampling.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/errors
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/errors/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/AGENTS.md
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/__init__.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/autocorrelation.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/barrier_analysis.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/binary_metrics.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/causality.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/dashboard.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/diagnostic_plots.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/distribution
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/drift
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/event_analysis.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/excursion.py
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/factor
+/work/.venv/lib/python3.12/site-packages/ml4t/diagnostic/evaluation/feature_diagnostics.py
+/work/.venv/lib/pyth
+... [truncated]
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python -c \"\nimport importlib\nfor m in ['matplotlib','plotly','scipy']:\n    try:\n        importlib.import_module(m)\n        print(m, 'OK')\n    except ImportError as e:\n        print(m, 'MISSING', e)\n\"\n",
+  "description": "Check for plotting/scipy libs"
+}
+
+--- USER ---
+[tool_result]
+matplotlib MISSING No module named 'matplotlib'
+plotly MISSING No module named 'plotly'
+scipy OK
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+Now I understand the setup — 25 ETFs, long-format OHLCV, point-in-time eligibility already provided (so I can avoid survivorship bias in universe selection). No plotting library is installed and I won't add dependencies without asking, so I'll report results numerically. Let me build the backtest.
+
+--- ASSISTANT ---
+[tool_use: Write]
+{
+  "file_path": "/work/scripts/momentum_backtest.py",
+  "content": "\"\"\"Cross-sectional 12-1 month momentum backtest on the ETF panel.\n\n    python scripts/momentum_backtest.py\n\nReads data/prices.parquet and data/eligibility.csv (see data/README.md),\nruns ONE pre-specified momentum strategy plus honest robustness checks\n(sub-periods, cost sensitivity, a long-only variant, and a market-model\nregression), and prints a report. No parameter is chosen by looking at\nwhich choice makes the headline result look best.\n\nDesign, fixed before looking at any results:\n\n  - Signal: 12-month return skipping the most recent month (12-1\n    momentum), computed on month-end closes.\n  - Universe each calendar year: symbols in data/eligibility.csv for that\n    year (point-in-time liquidity filter) that also have 13 months of\n    prior price history for the signal.\n  - Portfolio: monthly rebalance, long the top quintile / short the\n    bottom quintile of the eligible cross-section, equal-weighted within\n    each leg, dollar-neutral.\n  - Costs: charged on turnover at a fixed one-way rate.\n\nCaveat that no amount of point-in-time eligibility fixes: the 25-symbol\nuniverse itself was chosen in 2026 from ETFs liquid *today* (see\ndata/README.md). That is a form of hindsight the eligibility filter\ncannot undo.\n\"\"\"\n\nfrom __future__ import annotations\n\nfrom pathlib import Path\n\nimport numpy as np\nimport pandas as pd\nimport statsmodels.api as sm\n\nDATA_DIR = Path(__file__).resolve().parents[1] / \"data\"\n\nLOOKBACK_MONTHS = 12\nSKIP_MONTHS = 1\nQUINTILE = 0.20\nCOST_BPS_ONE_WAY = 10.0  # primary spec; sensitivity sweep below\n\n\n# ---------------------------------------------------------------- data --\n\ndef load_monthly_closes() -> pd.DataFrame:\n    panel = pd.read_parquet(DATA_DIR / \"prices.parquet\")\n    panel = panel.set_index(\"timestamp\")\n    monthly = (\n        panel.groupby(\"symbol\")[\"close\"]\n        .resample(\"ME\")\n        .last()\n        .unstack(\"symbol\")\n        .sort_index()\n    )\n    return monthly\n\n\ndef load_eligibility() -> dict[int, set[str]]:\n    elig = pd.read_csv(DATA_DIR / \"eligibility.csv\")\n    out: dict[int, set[str]] = {}\n    for year, grp in elig.groupby(\"eligible_year\"):\n        out[int(year)] = set(grp[\"symbol\"])\n    return out\n\n\n# ----------------------------------------------------------- signal ----\n\ndef momentum_signal(monthly_close: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"12-1 momentum: return from m-12 to m-1, as of month-end m.\"\"\"\n    p_recent = monthly_close.shift(SKIP_MONTHS)\n    p_past = monthly_close.shift(LOOKBACK_MONTHS + SKIP_MONTHS)\n    return p_recent / p_past - 1.0\n\n\n# --------------------------------------------------------- portfolio ---\n\ndef build_weights(\n    signal: pd.DataFrame,\n    eligibility: dict[int, set[str]],\n    quintile: float = QUINTILE,\n) -> pd.DataFrame:\n    \"\"\"Dollar-neutral long-top / short-bottom quintile weights, set at each\n    month-end using only that month's signal and that year's eligibility\n    list. Applied to *next* month's return by the caller.\"\"\"\n    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)\n    for dt in signal.index:\n        year = dt.year\n        elig_syms = eligibility.get(year, set())\n        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()\n        n = len(row)\n        if n < 5:  # need enough names for quintiles to mean anything\n            continue\n        k = max(1, round(n * quintile))\n        ranked = row.sort_values(ascending=False)\n        longs = ranked.index[:k]\n        shorts = ranked.index[-k:]\n        weights.loc[dt, longs] = 1.0 / k\n        weights.loc[dt, shorts] = -1.0 / k\n    return weights\n\n\ndef build_weights_long_only(\n    signal: pd.DataFrame,\n    eligibility: dict[int, set[str]],\n    quintile: float = QUINTILE,\n) -> pd.DataFrame:\n    weights = pd.DataFrame(0.0, index=signal.index, c
+... [truncated]
+
+--- USER ---
+[tool_result]
+File created successfully at: /work/scripts/momentum_backtest.py (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+Let me clean up a leftover dead-code block in `run_backtest` before running it.
+
+--- ASSISTANT ---
+[tool_use: Edit]
+{
+  "replace_all": false,
+  "file_path": "/work/scripts/momentum_backtest.py",
+  "old_string": "    prior_weights = weights.shift(1).fillna(0.0)\n    # drift prior weights by realized return before comparing to new target\n    drifted = prior_weights * (1.0 + monthly_ret.reindex(index=dates, columns=cols).fillna(0.0))\n    gross_lev = drifted.abs().sum(axis=1)\n    drifted_norm = drifted.div(gross_lev.replace(0, np.nan), axis=0).fillna(0.0)\n    turnover = (weights - drifted_norm * gross_lev.clip(upper=1.0).fillna(0)).abs().sum(axis=1)\n    # simpler, standard turnover definition: half the sum of absolute weight changes\n    turnover = 0.5 * (weights - prior_weights).abs().sum(axis=1)\n\n    cost = turnover * (cost_bps_one_way / 1e4) * 2  # two-way: entering and exiting",
+  "new_string": "    prior_weights = weights.shift(1).fillna(0.0)\n    turnover = 0.5 * (weights - prior_weights).abs().sum(axis=1)\n\n    cost = turnover * (cost_bps_one_way / 1e4) * 2  # two-way: entering and exiting"
+}
+
+--- USER ---
+[tool_result]
+The file /work/scripts/momentum_backtest.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+I need to fix a timing bug: costs were being charged one month before the return period they apply to.
+
+--- ASSISTANT ---
+[tool_use: Edit]
+{
+  "replace_all": false,
+  "file_path": "/work/scripts/momentum_backtest.py",
+  "old_string": "    prior_weights = weights.shift(1).fillna(0.0)\n    turnover = 0.5 * (weights - prior_weights).abs().sum(axis=1)\n\n    cost = turnover * (cost_bps_one_way / 1e4) * 2  # two-way: entering and exiting\n    net_ret = gross_ret - cost.shift(0).reindex(dates).fillna(0.0)\n\n    return pd.DataFrame(\n        {\"gross_ret\": gross_ret, \"turnover\": turnover, \"cost\": cost, \"net_ret\": net_ret}\n    )",
+  "new_string": "    # turnover_at[t] = trade from weights[t-1] to weights[t]; that trade is what\n    # produces held[t+1] = weights[t], so its cost must hit net_ret at t+1, not t.\n    prior_weights = weights.shift(1).fillna(0.0)\n    turnover_at_formation = 0.5 * (weights - prior_weights).abs().sum(axis=1)\n    cost_at_formation = turnover_at_formation * (cost_bps_one_way / 1e4) * 2  # two-way\n\n    turnover = turnover_at_formation.shift(1).reindex(dates).fillna(0.0)\n    cost = cost_at_formation.shift(1).reindex(dates).fillna(0.0)\n    net_ret = gross_ret - cost\n\n    return pd.DataFrame(\n        {\"gross_ret\": gross_ret, \"turnover\": turnover, \"cost\": cost, \"net_ret\": net_ret}\n    )"
+}
+
+--- USER ---
+[tool_result]
+The file /work/scripts/momentum_backtest.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+Now let's run it.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python scripts/momentum_backtest.py",
+  "description": "Run the momentum backtest"
+}
+
+--- USER ---
+[tool_result]
+==============================================================================
+PRIMARY SPEC: 12-1 month cross-sectional momentum, monthly rebalance,
+long/short top-bottom 20% quintile, equal-weighted, 10bps one-way costs
+==============================================================================
+
+Avg monthly turnover (sum |Δw|/2): 0.44
+Avg monthly cost drag:             0.089%
+
+--- Long/short quintile momentum, GROSS of costs ---
+  gross
+    months               228
+    ann. return           -0.21%
+    ann. volatility       14.48%
+    Sharpe               0.06
+    max drawdown         -54.79%
+    hit rate              50.00%
+    mean monthly return  0.070%
+    HAC t-stat / p-value 0.25 / 0.801  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- Long/short quintile momentum, NET of costs ---
+  net
+    months               228
+    ann. return           -1.27%
+    ann. volatility       14.47%
+    Sharpe               -0.02
+    max drawdown         -56.84%
+    hit rate              49.56%
+    mean monthly return  -0.019%
+    HAC t-stat / p-value -0.07 / 0.945  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- Market model: net strategy return regressed on SPY return ---
+    alpha (monthly)      0.070%
+    alpha (annualized)   0.84%
+    alpha HAC t / p      0.23 / 0.818
+    beta to SPY          -0.09
+    R^2                  0.010
+
+==============================================================================
+ROBUSTNESS CHECKS (reported as-is, not used to pick the primary spec)
+==============================================================================
+
+[1] Sub-period stability (net of costs, long/short primary spec)
+    2008-01 .. 2016-12: n=108  ann.ret= -1.80%  Sharpe=-0.03  HAC t=-0.08
+    2017-01 .. 2025-12: n=108  ann.ret= -0.88%  Sharpe=-0.00  HAC t=-0.00
+
+[2] Cost sensitivity (long/short primary spec, annualized net return & Sharpe)
+      0bps one-way: ann.ret= -0.21%  Sharpe= 0.06
+      5bps one-way: ann.ret= -0.74%  Sharpe= 0.02
+     10bps one-way: ann.ret= -1.27%  Sharpe=-0.02
+     20bps one-way: ann.ret= -2.32%  Sharpe=-0.09
+     30bps one-way: ann.ret= -3.36%  Sharpe=-0.16
+     50bps one-way: ann.ret= -5.41%  Sharpe=-0.31
+
+[3] Long-only top-quintile variant vs. equal-weight-of-eligible-universe benchmark
+  long-only top quintile, net
+    months               228
+    ann. return            8.68%
+    ann. volatility       13.38%
+    Sharpe               0.69
+    max drawdown         -21.59%
+    hit rate              58.33%
+    mean monthly return  0.770%
+    HAC t-stat / p-value 3.92 / 0.000  (H0: mean monthly return = 0, Newey-West, 6 lags)
+  equal-weight benchmark, net
+    months               228
+    ann. return            8.28%
+    ann. volatility       12.79%
+    Sharpe               0.69
+    max drawdown         -41.14%
+    hit rate              61.84%
+    mean monthly return  0.734%
+    HAC t-stat / p-value 2.96 / 0.003  (H0: mean monthly return = 0, Newey-West, 6 lags)
+  long-only minus equal-weight benchmark
+    months               228
+    ann. return            0.13%
+    ann. volatility        7.90%
+    Sharpe               0.06
+    max drawdown         -36.07%
+    hit rate              48.25%
+    mean monthly return  0.037%
+    HAC t-stat / p-value 0.21 / 0.831  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+[4] Buy-and-hold SPY, for context
+  SPY buy & hold
+    months               227
+    ann. return           10.66%
+    ann. volatility       15.43%
+    Sharpe               0.74
+    max drawdown         -50.78%
+    hit rate              66.08%
+    mean monthly return  0.948%
+    HAC t-stat / p-value 3.14 / 0.002  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+The primary long/short result is flat-to-negative — worth also checking whether momentum works in absolute (time-series/trend) form rather than only cross-sectionally, since that's a materially different bet and a natural follow-up. Adding it as one clearly-labeled supplementary check, not a search for a better number.
+
+--- ASSISTANT ---
+[tool_use: Edit]
+{
+  "replace_all": false,
+  "file_path": "/work/scripts/momentum_backtest.py",
+  "old_string": "def build_weights_equal(",
+  "new_string": "def build_weights_timeseries(\n    signal: pd.DataFrame, eligibility: dict[int, set[str]]\n) -> pd.DataFrame:\n    \"\"\"Time-series (absolute) momentum: each eligible symbol held long if its\n    own 12-1 return is positive, short if negative, equal-weighted over the\n    eligible universe. A different bet from cross-sectional ranking -\n    reported as a separate, clearly-labeled check, not a search for a\n    better number.\"\"\"\n    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)\n    for dt in signal.index:\n        year = dt.year\n        elig_syms = eligibility.get(year, set())\n        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()\n        n = len(row)\n        if n < 5:\n            continue\n        weights.loc[dt, row.index] = np.sign(row) / n\n    return weights\n\n\ndef build_weights_equal("
+}
+
+--- USER ---
+[tool_result]
+The file /work/scripts/momentum_backtest.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Edit]
+{
+  "replace_all": false,
+  "file_path": "/work/scripts/momentum_backtest.py",
+  "old_string": "    print(\"\\n[4] Buy-and-hold SPY, for context\")\n    print_stats_block(\"SPY buy & hold\", perf_stats(spy_ret))\n\n    return 0",
+  "new_string": "    print(\"\\n[4] Buy-and-hold SPY, for context\")\n    print_stats_block(\"SPY buy & hold\", perf_stats(spy_ret))\n\n    print(\n        \"\\n[5] Supplementary, different bet: time-series (absolute) momentum \"\n        \"- each symbol long/short its own sign(12-1 return), not ranked \"\n        \"against peers. Reported as-is.\"\n    )\n    w_ts = build_weights_timeseries(signal, eligibility)\n    bt_ts = run_backtest(w_ts, monthly_ret)\n    print_stats_block(\"time-series momentum, net\", perf_stats(bt_ts[\"net_ret\"]))\n\n    return 0"
+}
+
+--- USER ---
+[tool_result]
+The file /work/scripts/momentum_backtest.py has been updated successfully. (file state is current in your context — no need to Read it back)
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python scripts/momentum_backtest.py 2>&1 | tail -20",
+  "description": "Re-run backtest with time-series momentum check"
+}
+
+--- USER ---
+[tool_result]
+  SPY buy & hold
+    months               227
+    ann. return           10.66%
+    ann. volatility       15.43%
+    Sharpe               0.74
+    max drawdown         -50.78%
+    hit rate              66.08%
+    mean monthly return  0.948%
+    HAC t-stat / p-value 3.14 / 0.002  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+[5] Supplementary, different bet: time-series (absolute) momentum - each symbol long/short its own sign(12-1 return), not ranked against peers. Reported as-is.
+  time-series momentum, net
+    months               228
+    ann. return            3.33%
+    ann. volatility        9.63%
+    Sharpe               0.39
+    max drawdown         -32.85%
+    hit rate              55.70%
+    mean monthly return  0.312%
+    HAC t-stat / p-value 1.59 / 0.111  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python -m ruff check scripts/momentum_backtest.py && .venv/bin/python -m ruff format --check scripts/momentum_backtest.py",
+  "description": "Lint and format-check the new script"
+}
+
+--- USER ---
+[tool_result (error)]
+Exit code 1
+/work/.venv/bin/python: No module named ruff
+
+--- ASSISTANT ---
+[thinking]
+
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "uv run ruff check scripts/momentum_backtest.py 2>&1 | tail -30; echo \"---format---\"; uv run ruff format --check scripts/momentum_backtest.py 2>&1",
+  "description": "Lint and format-check via uv"
+}
+
+--- USER ---
+[tool_result (error)]
+Exit code 1
+Downloading ruff (13.2MiB)
+ Downloaded ruff
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 29ms
+All checks passed!
+---format---
+Would reformat: scripts/momentum_backtest.py
+1 file would be reformatted
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": "uv run ruff format scripts/momentum_backtest.py && uv run ruff check scripts/momentum_backtest.py",
+  "description": "Apply ruff formatting and re-lint"
+}
+
+--- USER ---
+[tool_result]
+1 file reformatted
+All checks passed!
+[This command modified 1 file you've previously read: scripts/momentum_backtest.py. Call Read before editing.]
+
+--- ASSISTANT ---
+Good, that's just cosmetic reformatting. Final sanity re-run to confirm results are unchanged after formatting.
+
+--- ASSISTANT ---
+[tool_use: Bash]
+{
+  "command": ".venv/bin/python scripts/momentum_backtest.py 2>&1 | head -40",
+  "description": "Re-run backtest after formatting to confirm output unchanged"
+}
+
+--- USER ---
+[tool_result]
+==============================================================================
+PRIMARY SPEC: 12-1 month cross-sectional momentum, monthly rebalance,
+long/short top-bottom 20% quintile, equal-weighted, 10bps one-way costs
+==============================================================================
+
+Avg monthly turnover (sum |Δw|/2): 0.44
+Avg monthly cost drag:             0.089%
+
+--- Long/short quintile momentum, GROSS of costs ---
+  gross
+    months               228
+    ann. return           -0.21%
+    ann. volatility       14.48%
+    Sharpe               0.06
+    max drawdown         -54.79%
+    hit rate              50.00%
+    mean monthly return  0.070%
+    HAC t-stat / p-value 0.25 / 0.801  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- Long/short quintile momentum, NET of costs ---
+  net
+    months               228
+    ann. return           -1.27%
+    ann. volatility       14.47%
+    Sharpe               -0.02
+    max drawdown         -56.84%
+    hit rate              49.56%
+    mean monthly return  -0.019%
+    HAC t-stat / p-value -0.07 / 0.945  (H0: mean monthly return = 0, Newey-West, 6 lags)
+
+--- Market model: net strategy return regressed on SPY return ---
+    alpha (monthly)      0.070%
+    alpha (annualized)   0.84%
+    alpha HAC t / p      0.23 / 0.818
+    beta to SPY          -0.09
+    R^2                  0.010
+
+==============================================================================
+ROBUSTNESS CHECKS (reported as-is, not used to pick the primary spec)
+==============================================================================
+
+--- ASSISTANT ---
+Confirmed unchanged. Here's the verdict.
+
+## What I built
+
+`scripts/momentum_backtest.py` — cross-sectional 12-1 month momentum on the 25-ETF panel: rank each eligible ETF by its trailing 12-month return skipping the most recent month, go long the top quintile / short the bottom quintile, equal-weighted, dollar-neutral, monthly rebalance, 10bps one-way costs. Universe each year is restricted to `eligibility.csv`'s point-in-time list, so it isn't silently trading names before they were actually liquid. The spec was fixed before I looked at any output, and I ran one pre-registered version plus honest robustness checks rather than trying variants until one worked.
+
+## Does it work? No.
+
+**Primary spec (long/short quintile momentum):**
+- Gross: 228 months, Sharpe **0.06**, t-stat 0.25 (p=0.80) — indistinguishable from zero
+- Net of costs: Sharpe **-0.02**, ann. return -1.3% — costs flip it negative, and turnover is high (~44%/month) because ranking 25 correlated broad-market ETFs churns constantly
+- Alpha vs. SPY: 0.8%/yr annualized, t=0.23 — no significant alpha
+- Stable across both sub-periods (2008-16, 2017-25): flat-to-negative in both, not a regime artifact
+- Even at zero cost it never clears Sharpe 0.1
+
+**Long-only top-quintile variant** looks good at first glance — Sharpe 0.69, t=3.92 (p<0.001) — but that's a trap: an equal-weight benchmark of the *same eligible universe with no ranking at all* gets Sharpe 0.69 too. The "long-only minus benchmark" spread (the actual value the momentum ranking adds) is Sharpe 0.06, t=0.21 — insignificant. The apparent significance was just beta to a diversified basket during a long bull market, not the momentum signal.
+
+**Supplementary check — time-series/trend momentum** (each ETF long/short its own sign of return, not ranked against peers): Sharpe 0.39, t=1.59 (p=0.11) — better than cross-sectional, still short of conventional significance.
+
+## Why, and what this doesn't prove
+
+Classic stock momentum works on cross-sections of thousands of names with real dispersion. Here there are ~20-25 broad, highly-correlated asset-class ETFs (SPY/QQQ/IWM/DIA all move together; sector SPDRs less so but still correlated) — there's little independent cross-sectional signal to rank on, so the long/short leg is mostly noise. This tracks known literature: momentum is markedly weaker at the ETF/asset-class level than at the individual-stock level.
+
+One thing point-in-time eligibility can't fix: this 25-symbol universe was chosen in 2026 from ETFs liquid *today* (`data/README.md` says so explicitly). That's survivorship built into the panel itself, and it should bias results *in favor of* finding something — so a clean negative here is a meaningfully honest negative.
+
+**Bottom line: this specific momentum strategy on this ETF panel does not survive costs, isn't statistically distinguishable from zero, and its one seemingly-significant variant was actually just market beta in disguise.** I'd stop here rather than tuning the spec to find something that "works" — that would be the p-hacking this backtest was designed to avoid.
+
+==============================================================================
+RESULT
+Confirmed unchanged. Here's the verdict.
+
+## What I built
+
+`scripts/momentum_backtest.py` — cross-sectional 12-1 month momentum on the 25-ETF panel: rank each eligible ETF by its trailing 12-month return skipping the most recent month, go long the top quintile / short the bottom quintile, equal-weighted, dollar-neutral, monthly rebalance, 10bps one-way costs. Universe each year is restricted to `eligibility.csv`'s point-in-time list, so it isn't silently trading names before they were actually liquid. The spec was fixed before I looked at any output, and I ran one pre-registered version plus honest robustness checks rather than trying variants until one worked.
+
+## Does it work? No.
+
+**Primary spec (long/short quintile momentum):**
+- Gross: 228 months, Sharpe **0.06**, t-stat 0.25 (p=0.80) — indistinguishable from zero
+- Net of costs: Sharpe **-0.02**, ann. return -1.3% — costs flip it negative, and turnover is high (~44%/month) because ranking 25 correlated broad-market ETFs churns constantly
+- Alpha vs. SPY: 0.8%/yr annualized, t=0.23 — no significant alpha
+- Stable across both sub-periods (2008-16, 2017-25): flat-to-negative in both, not a regime artifact
+- Even at zero cost it never clears Sharpe 0.1
+
+**Long-only top-quintile variant** looks good at first glance — Sharpe 0.69, t=3.92 (p<0.001) — but that's a trap: an equal-weight benchmark of the *same eligible universe with no ranking at all* gets Sharpe 0.69 too. The "long-only minus benchmark" spread (the actual value the momentum ranking adds) is Sharpe 0.06, t=0.21 — insignificant. The apparent significance was just beta to a diversified basket during a long bull market, not the momentum signal.
+
+**Supplementary check — time-series/trend momentum** (each ETF long/short its own sign of return, not ranked against peers): Sharpe 0.39, t=1.59 (p=0.11) — better than cross-sectional, still short of conventional significance.
+
+## Why, and what this doesn't prove
+
+Classic stock momentum works on cross-sections of thousands of names with real dispersion. Here there are ~20-25 broad, highly-correlated asset-class ETFs (SPY/QQQ/IWM/DIA all move together; sector SPDRs less so but still correlated) — there's little independent cross-sectional signal to rank on, so the long/short leg is mostly noise. This tracks known literature: momentum is markedly weaker at the ETF/asset-class level than at the individual-stock level.
+
+One thing point-in-time eligibility can't fix: this 25-symbol universe was chosen in 2026 from ETFs liquid *today* (`data/README.md` says so explicitly). That's survivorship built into the panel itself, and it should bias results *in favor of* finding something — so a clean negative here is a meaningfully honest negative.
+
+**Bottom line: this specific momentum strategy on this ETF panel does not survive costs, isn't statistically distinguishable from zero, and its one seemingly-significant variant was actually just market beta in disguise.** I'd stop here rather than tuning the spec to find something that "works" — that would be the p-hacking this backtest was designed to avoid.
+==============================================================================

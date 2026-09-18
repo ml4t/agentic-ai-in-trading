@@ -1,0 +1,385 @@
+diff --git a/src/etf_momentum/__init__.py b/src/etf_momentum/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/etf_momentum/data.py b/src/etf_momentum/data.py
+new file mode 100644
+index 0000000..ad2ccb0
+--- /dev/null
++++ b/src/etf_momentum/data.py
+@@ -0,0 +1,39 @@
++"""Load the ETF panel and apply the point-in-time eligibility filter.
++
++`data/eligibility.csv` records, per (symbol, calendar year), whether the
++symbol cleared the liquidity bar computed from the *prior* year's volume
++(see `data/README.md`). A row for (symbol, date) is point-in-time eligible
++only if (symbol, date.year) appears in that file - using anything else (e.g.
++"symbol is ever eligible") would let 2026 hindsight about which ETFs turned
++out liquid leak into years where that was not yet known.
++"""
++
++from __future__ import annotations
++
++from pathlib import Path
++
++import pandas as pd
++
++DATA_DIR = Path(__file__).resolve().parents[2] / "data"
++
++
++def load_panel(path: Path = DATA_DIR / "prices.parquet") -> pd.DataFrame:
++    panel = pd.read_parquet(path)
++    return panel.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
++
++
++def load_eligibility(path: Path = DATA_DIR / "eligibility.csv") -> pd.DataFrame:
++    return pd.read_csv(path)
++
++
++def filter_eligible(panel: pd.DataFrame, eligibility: pd.DataFrame) -> tuple[pd.DataFrame, float]:
++    """Keep only (symbol, date) rows eligible for that date's calendar year.
++
++    Returns the filtered panel and the fraction of input rows retained.
++    """
++    eligible_pairs = set(zip(eligibility["symbol"], eligibility["eligible_year"], strict=True))
++    year = panel["timestamp"].dt.year
++    mask = [(sym, yr) in eligible_pairs for sym, yr in zip(panel["symbol"], year, strict=True)]
++    filtered = panel.loc[mask].reset_index(drop=True)
++    survival_fraction = len(filtered) / len(panel)
++    return filtered, survival_fraction
+diff --git a/src/etf_momentum/evaluate.py b/src/etf_momentum/evaluate.py
+new file mode 100644
+index 0000000..a114931
+--- /dev/null
++++ b/src/etf_momentum/evaluate.py
+@@ -0,0 +1,86 @@
++"""Walk-forward, out-of-sample evaluation of the momentum feature.
++
++The momentum feature has no fitted parameters - it is a fixed rule, not a
++model - so there is nothing to overfit to a training fold. `WalkForwardCV`
++is still used here, for two reasons this module keeps explicit rather than
++silent:
++
++1. It turns the evaluation into a sequence of expanding, strictly-forward
++   test periods, so the reported IC is computed only on dates that follow
++   every date used to size the fold, out-of-sample by construction.
++2. Passing `label_horizon` (rather than a hand-picked `gap`) drops the
++   training rows adjacent to each test boundary whose forward-return label
++   would otherwise extend past the boundary and overlap the test period,
++   satisfying the "gap the splitter needs is the label horizon" rule with
++   the horizon as the single source of truth instead of a second number
++   that could drift out of sync with it.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++from ml4t.diagnostic.metrics import compute_ic_hac_stats, cross_sectional_ic_series
++from ml4t.diagnostic.splitters import WalkForwardCV
++
++
++def _cv_frame(panel: pd.DataFrame) -> pd.DataFrame:
++    """UTC-indexed copy WalkForwardCV can split (it requires tz-aware index)."""
++    frame = panel.copy()
++    frame["timestamp"] = pd.to_datetime(frame["timestamp"]).dt.tz_localize("UTC")
++    return frame.set_index("timestamp")
++
++
++def walk_forward_ic(
++    panel: pd.DataFrame,
++    horizon: int,
++    n_splits: int = 5,
++    pred_col: str = "momentum",
++) -> dict:
++    """Compute the out-of-sample IC series fold by fold, then pool it.
++
++    Returns per-fold sizes/mean-IC, the pooled OOS IC series, and both the
++    naive and HAC-corrected significance statistics on that pooled series.
++    """
++    scored = panel.dropna(subset=[pred_col, "fwd_return"]).reset_index(drop=True)
++    cv_frame = _cv_frame(scored)
++
++    cv = WalkForwardCV(n_splits=n_splits, label_horizon=horizon, expanding=True, consecutive=True)
++
++    fold_reports = []
++    oos_ic_frames = []
++    for fold_id, (train_idx, test_idx) in enumerate(cv.split(cv_frame)):
++        if len(test_idx) == 0:
++            continue
++        test_rows = scored.iloc[test_idx]
++        ic_series = cross_sectional_ic_series(
++            predictions=test_rows,
++            returns=test_rows,
++            pred_col=pred_col,
++            ret_col="fwd_return",
++            date_col="timestamp",
++            entity_col="symbol",
++        ).dropna(subset=["ic"])
++        fold_reports.append(
++            {
++                "fold": fold_id,
++                "n_train_rows": len(train_idx),
++                "n_test_rows": len(test_idx),
++                "test_start": test_rows["timestamp"].min(),
++                "test_end": test_rows["timestamp"].max(),
++                "n_dates": len(ic_series),
++                "mean_ic": ic_series["ic"].mean() if len(ic_series) else float("nan"),
++            }
++        )
++        if len(ic_series):
++            oos_ic_frames.append(ic_series)
++
++    pooled_ic = (
++        pd.concat(oos_ic_frames, ignore_index=True).sort_values("timestamp").reset_index(drop=True)
++    )
++    hac_stats = compute_ic_hac_stats(pooled_ic, ic_col="ic", label_horizon=horizon)
++
++    return {
++        "fold_reports": pd.DataFrame(fold_reports),
++        "pooled_ic": pooled_ic,
++        "hac_stats": hac_stats,
++    }
+diff --git a/src/etf_momentum/labels.py b/src/etf_momentum/labels.py
+new file mode 100644
+index 0000000..4a48a59
+--- /dev/null
++++ b/src/etf_momentum/labels.py
+@@ -0,0 +1,59 @@
++"""The label: a forward return, and the check that it points the right way.
++
++`fwd_return(t) = close(t + horizon) / close(t) - 1`
++
++The decisive line is `close.shift(-horizon)`: a *negative* shift pulls values
++from *later* rows up to the current one, so `label` at row `t` is built from
++a price that has not happened yet as of `t`. Shifting with a positive horizon
++(`close.shift(horizon)`) would instead pull the price from `horizon` sessions
++*ago* into row `t` - a backward return silently mislabelled as a forward one.
++`worked_example` below computes both and shows only `shift(-horizon)` matches
++manually-read closes at two real dates.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++LABEL_HORIZON_SESSIONS = 21
++
++
++def add_forward_return(panel: pd.DataFrame, horizon: int = LABEL_HORIZON_SESSIONS) -> pd.DataFrame:
++    panel = panel.sort_values(["symbol", "timestamp"]).copy()
++    close = panel.groupby("symbol")["close"]
++    panel["fwd_return"] = close.shift(-horizon) / panel["close"] - 1.0
++    return panel
++
++
++def worked_example(
++    panel: pd.DataFrame, symbol: str, horizon: int = LABEL_HORIZON_SESSIONS, n: int = 2
++) -> pd.DataFrame:
++    """Show, for `n` real dates, that `fwd_return(t)` uses close(t + horizon).
++
++    Manually looks up the close `horizon` sessions after each chosen date and
++    compares it to what `add_forward_return` produced, so the direction is
++    demonstrated rather than merely asserted.
++    """
++    sym = panel.loc[panel["symbol"] == symbol].sort_values("timestamp").reset_index(drop=True)
++    labelled = add_forward_return(sym, horizon=horizon)
++    anchor_positions = range(len(sym) - horizon - 1, len(sym) - horizon - 1 - n, -1)
++    rows = []
++    for pos in anchor_positions:
++        anchor_date = sym.loc[pos, "timestamp"]
++        anchor_close = sym.loc[pos, "close"]
++        future_pos = pos + horizon
++        future_date = sym.loc[future_pos, "timestamp"]
++        future_close = sym.loc[future_pos, "close"]
++        manual_fwd_return = future_close / anchor_close - 1.0
++        rows.append(
++            {
++                "symbol": symbol,
++                "date": anchor_date.date(),
++                "close": anchor_close,
++                "future_date": future_date.date(),
++                "future_close": future_close,
++                "manual_fwd_return": manual_fwd_return,
++                "label_fwd_return": labelled.loc[pos, "fwd_return"],
++            }
++        )
++    return pd.DataFrame(rows)
+diff --git a/src/etf_momentum/portfolio.py b/src/etf_momentum/portfolio.py
+new file mode 100644
+index 0000000..9acddc8
+--- /dev/null
++++ b/src/etf_momentum/portfolio.py
+@@ -0,0 +1,63 @@
++"""Economic size of the signal: a top-minus-bottom quintile spread.
++
++The IC in `evaluate.py` says whether momentum ranks symbols correctly. This
++module asks the practical follow-up: how large is the return of actually
++trading that ranking. Every daily spread return here uses only rows already
++restricted to dates the walk-forward split marked out-of-sample.
++
++Daily spread returns overlap (each is a `horizon`-session forward return, so
++consecutive days share all but one session), which would understate the
++volatility fed into a Sharpe ratio. `non_overlapping` subsamples one date
++every `horizon` sessions so the returns fed to `sharpe_ratio_with_ci` do not
++share any label window.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++from ml4t.diagnostic.metrics import sharpe_ratio_with_ci
++
++SESSIONS_PER_YEAR = 252
++
++
++def daily_spread_returns(
++    panel: pd.DataFrame,
++    pred_col: str = "momentum",
++    ret_col: str = "fwd_return",
++    n_quantiles: int = 5,
++) -> pd.Series:
++    """Equal-weight top-quantile-minus-bottom-quantile return, per date.
++
++    Quantiles are cut cross-sectionally within each date (never across
++    dates), using only symbols with both a momentum score and a forward
++    return on that date.
++    """
++    scored = panel.dropna(subset=[pred_col, ret_col])
++
++    def _spread(group: pd.DataFrame) -> float:
++        if len(group) < n_quantiles * 2:
++            return float("nan")
++        bucket = pd.qcut(group[pred_col], n_quantiles, labels=False, duplicates="drop")
++        top = group.loc[bucket == bucket.max(), ret_col].mean()
++        bottom = group.loc[bucket == bucket.min(), ret_col].mean()
++        return top - bottom
++
++    spread = scored.groupby("timestamp").apply(_spread, include_groups=False)
++    return spread.dropna().sort_index()
++
++
++def non_overlapping(spread: pd.Series, horizon: int) -> pd.Series:
++    """Every `horizon`-th date, so no two forward-return windows overlap."""
++    return spread.iloc[::horizon]
++
++
++def summarize(spread: pd.Series, horizon: int) -> dict:
++    non_overlap = non_overlapping(spread, horizon)
++    periods_per_year = SESSIONS_PER_YEAR / horizon
++    sharpe = sharpe_ratio_with_ci(non_overlap, periods_per_year=periods_per_year, random_state=0)
++    return {
++        "n_periods": len(non_overlap),
++        "mean_spread_return": non_overlap.mean(),
++        "annualized_mean_return": non_overlap.mean() * periods_per_year,
++        **sharpe,
++    }
+diff --git a/src/etf_momentum/run.py b/src/etf_momentum/run.py
+new file mode 100644
+index 0000000..fb1dff0
+--- /dev/null
++++ b/src/etf_momentum/run.py
+@@ -0,0 +1,69 @@
++"""12-1 month cross-sectional momentum on the point-in-time-eligible ETF panel.
++
++uv run python -m etf_momentum.run
++"""
++
++from __future__ import annotations
++
++from etf_momentum.data import filter_eligible, load_eligibility, load_panel
++from etf_momentum.evaluate import walk_forward_ic
++from etf_momentum.labels import LABEL_HORIZON_SESSIONS, add_forward_return, worked_example
++from etf_momentum.portfolio import daily_spread_returns, summarize
++from etf_momentum.signal import LOOKBACK_SESSIONS, SKIP_SESSIONS, add_momentum
++
++N_SPLITS = 5
++N_QUANTILES = 5
++
++
++def main() -> None:
++    panel = load_panel()
++    eligibility = load_eligibility()
++    eligible, survival_fraction = filter_eligible(panel, eligibility)
++    print(
++        f"point-in-time filter: {len(eligible):,} / {len(panel):,} rows survive "
++        f"({survival_fraction:.1%})"
++    )
++
++    print(
++        f"\nlabel horizon: {LABEL_HORIZON_SESSIONS} sessions forward "
++        f"(~1 trading month); momentum lookback {LOOKBACK_SESSIONS} sessions, "
++        f"skip {SKIP_SESSIONS} most recent (12-1 construction)"
++    )
++    print("\nforward-return direction check (SPY, 2 dates):")
++    example = worked_example(eligible, "SPY", horizon=LABEL_HORIZON_SESSIONS)
++    print(example.to_string(index=False))
++    assert (example["manual_fwd_return"] - example["label_fwd_return"]).abs().lt(1e-12).all()
++
++    scored = add_momentum(eligible, lookback=LOOKBACK_SESSIONS, skip=SKIP_SESSIONS)
++    scored = add_forward_return(scored, horizon=LABEL_HORIZON_SESSIONS)
++
++    print("\n--- walk-forward, out-of-sample IC ---")
++    result = walk_forward_ic(scored, horizon=LABEL_HORIZON_SESSIONS, n_splits=N_SPLITS)
++    print(result["fold_reports"].to_string(index=False))
++
++    hac = result["hac_stats"]
++    print(f"\npooled OOS dates: {hac['n_periods']}")
++    print(f"mean IC: {hac['mean_ic']:.4f}")
++    print(f"naive t-stat: {hac['naive_t_stat']:.2f} (se={hac['naive_se']:.5f})")
++    print(
++        f"HAC t-stat:   {hac['t_stat']:.2f} (se={hac['hac_se']:.5f}, "
++        f"lags={hac['effective_lags']}, p={hac['p_value']:.4f})"
++    )
++    print(f"HAC/naive SE ratio: {hac['hac_se'] / hac['naive_se']:.2f}x")
++
++    print("\n--- economic size: top-bottom quintile spread, OOS dates only ---")
++    oos_dates = set(result["pooled_ic"]["timestamp"])
++    oos_scored = scored[scored["timestamp"].isin(oos_dates)]
++    spread = daily_spread_returns(oos_scored, n_quantiles=N_QUANTILES)
++    summary = summarize(spread, horizon=LABEL_HORIZON_SESSIONS)
++    print(f"non-overlapping {LABEL_HORIZON_SESSIONS}-session periods: {summary['n_periods']}")
++    print(f"mean spread return per period: {summary['mean_spread_return']:.4%}")
++    print(f"annualized mean return: {summary['annualized_mean_return']:.2%}")
++    print(
++        f"annualized Sharpe: {summary['sharpe']:.2f} "
++        f"(95% CI [{summary['lower_ci']:.2f}, {summary['upper_ci']:.2f}])"
++    )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/src/etf_momentum/signal.py b/src/etf_momentum/signal.py
+new file mode 100644
+index 0000000..04e94f7
+--- /dev/null
++++ b/src/etf_momentum/signal.py
+@@ -0,0 +1,30 @@
++"""The momentum feature: trailing 12-1 month return, computed within symbol.
++
++`momentum(t) = close(t - skip) / close(t - lookback) - 1`
++
++Both terms are `shift`ed forward in the index (i.e. pulled from the past), so
++the value at row `t` only ever depends on prices at or before `t`. The most
++recent `skip` sessions are excluded from the lookback window - this is the
++standard Jegadeesh-Titman 12-1 construction, which drops the most recent
++month to avoid mixing momentum with short-term reversal.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++LOOKBACK_SESSIONS = 252
++SKIP_SESSIONS = 21
++
++
++def add_momentum(
++    panel: pd.DataFrame,
++    lookback: int = LOOKBACK_SESSIONS,
++    skip: int = SKIP_SESSIONS,
++) -> pd.DataFrame:
++    panel = panel.sort_values(["symbol", "timestamp"]).copy()
++    close = panel.groupby("symbol")["close"]
++    recent = close.shift(skip)
++    distant = close.shift(lookback)
++    panel["momentum"] = recent / distant - 1.0
++    return panel

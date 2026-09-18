@@ -1,0 +1,345 @@
+diff --git a/scripts/momentum_backtest.py b/scripts/momentum_backtest.py
+new file mode 100644
+index 0000000..51e8668
+--- /dev/null
++++ b/scripts/momentum_backtest.py
+@@ -0,0 +1,339 @@
++"""Cross-sectional 12-1 month momentum backtest on the ETF panel.
++
++    python scripts/momentum_backtest.py
++
++Reads data/prices.parquet and data/eligibility.csv (see data/README.md),
++runs ONE pre-specified momentum strategy plus honest robustness checks
++(sub-periods, cost sensitivity, a long-only variant, and a market-model
++regression), and prints a report. No parameter is chosen by looking at
++which choice makes the headline result look best.
++
++Design, fixed before looking at any results:
++
++  - Signal: 12-month return skipping the most recent month (12-1
++    momentum), computed on month-end closes.
++  - Universe each calendar year: symbols in data/eligibility.csv for that
++    year (point-in-time liquidity filter) that also have 13 months of
++    prior price history for the signal.
++  - Portfolio: monthly rebalance, long the top quintile / short the
++    bottom quintile of the eligible cross-section, equal-weighted within
++    each leg, dollar-neutral.
++  - Costs: charged on turnover at a fixed one-way rate.
++
++Caveat that no amount of point-in-time eligibility fixes: the 25-symbol
++universe itself was chosen in 2026 from ETFs liquid *today* (see
++data/README.md). That is a form of hindsight the eligibility filter
++cannot undo.
++"""
++
++from __future__ import annotations
++
++from pathlib import Path
++
++import numpy as np
++import pandas as pd
++import statsmodels.api as sm
++
++DATA_DIR = Path(__file__).resolve().parents[1] / "data"
++
++LOOKBACK_MONTHS = 12
++SKIP_MONTHS = 1
++QUINTILE = 0.20
++COST_BPS_ONE_WAY = 10.0  # primary spec; sensitivity sweep below
++
++
++# ---------------------------------------------------------------- data --
++
++
++def load_monthly_closes() -> pd.DataFrame:
++    panel = pd.read_parquet(DATA_DIR / "prices.parquet")
++    panel = panel.set_index("timestamp")
++    monthly = panel.groupby("symbol")["close"].resample("ME").last().unstack("symbol").sort_index()
++    return monthly
++
++
++def load_eligibility() -> dict[int, set[str]]:
++    elig = pd.read_csv(DATA_DIR / "eligibility.csv")
++    out: dict[int, set[str]] = {}
++    for year, grp in elig.groupby("eligible_year"):
++        out[int(year)] = set(grp["symbol"])
++    return out
++
++
++# ----------------------------------------------------------- signal ----
++
++
++def momentum_signal(monthly_close: pd.DataFrame) -> pd.DataFrame:
++    """12-1 momentum: return from m-12 to m-1, as of month-end m."""
++    p_recent = monthly_close.shift(SKIP_MONTHS)
++    p_past = monthly_close.shift(LOOKBACK_MONTHS + SKIP_MONTHS)
++    return p_recent / p_past - 1.0
++
++
++# --------------------------------------------------------- portfolio ---
++
++
++def build_weights(
++    signal: pd.DataFrame,
++    eligibility: dict[int, set[str]],
++    quintile: float = QUINTILE,
++) -> pd.DataFrame:
++    """Dollar-neutral long-top / short-bottom quintile weights, set at each
++    month-end using only that month's signal and that year's eligibility
++    list. Applied to *next* month's return by the caller."""
++    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)
++    for dt in signal.index:
++        year = dt.year
++        elig_syms = eligibility.get(year, set())
++        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()
++        n = len(row)
++        if n < 5:  # need enough names for quintiles to mean anything
++            continue
++        k = max(1, round(n * quintile))
++        ranked = row.sort_values(ascending=False)
++        longs = ranked.index[:k]
++        shorts = ranked.index[-k:]
++        weights.loc[dt, longs] = 1.0 / k
++        weights.loc[dt, shorts] = -1.0 / k
++    return weights
++
++
++def build_weights_long_only(
++    signal: pd.DataFrame,
++    eligibility: dict[int, set[str]],
++    quintile: float = QUINTILE,
++) -> pd.DataFrame:
++    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)
++    for dt in signal.index:
++        year = dt.year
++        elig_syms = eligibility.get(year, set())
++        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()
++        n = len(row)
++        if n < 5:
++            continue
++        k = max(1, round(n * quintile))
++        longs = row.sort_values(ascending=False).index[:k]
++        weights.loc[dt, longs] = 1.0 / k
++    return weights
++
++
++def build_weights_timeseries(
++    signal: pd.DataFrame, eligibility: dict[int, set[str]]
++) -> pd.DataFrame:
++    """Time-series (absolute) momentum: each eligible symbol held long if its
++    own 12-1 return is positive, short if negative, equal-weighted over the
++    eligible universe. A different bet from cross-sectional ranking -
++    reported as a separate, clearly-labeled check, not a search for a
++    better number."""
++    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)
++    for dt in signal.index:
++        year = dt.year
++        elig_syms = eligibility.get(year, set())
++        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()
++        n = len(row)
++        if n < 5:
++            continue
++        weights.loc[dt, row.index] = np.sign(row) / n
++    return weights
++
++
++def build_weights_equal(signal: pd.DataFrame, eligibility: dict[int, set[str]]) -> pd.DataFrame:
++    """Benchmark: equal weight across the same eligible, signal-available
++    universe each month (isolates the cross-sectional tilt from simply
++    being invested in this basket)."""
++    weights = pd.DataFrame(0.0, index=signal.index, columns=signal.columns)
++    for dt in signal.index:
++        year = dt.year
++        elig_syms = eligibility.get(year, set())
++        row = signal.loc[dt, list(elig_syms & set(signal.columns))].dropna()
++        n = len(row)
++        if n < 5:
++            continue
++        weights.loc[dt, row.index] = 1.0 / n
++    return weights
++
++
++# ----------------------------------------------------------- backtest --
++
++
++def run_backtest(
++    weights: pd.DataFrame,
++    monthly_ret: pd.DataFrame,
++    cost_bps_one_way: float = COST_BPS_ONE_WAY,
++) -> pd.DataFrame:
++    """weights.loc[dt] is set using information available through dt and
++    is held to earn monthly_ret at dt+1 (next row). Turnover/costs are
++    charged at the month the new weights are put on."""
++    dates = weights.index
++    cols = weights.columns
++    held = weights.shift(1).reindex(dates).fillna(0.0)  # positions earning this month's return
++    gross_ret = (held * monthly_ret.reindex(index=dates, columns=cols)).sum(axis=1)
++
++    # turnover_at[t] = trade from weights[t-1] to weights[t]; that trade is what
++    # produces held[t+1] = weights[t], so its cost must hit net_ret at t+1, not t.
++    prior_weights = weights.shift(1).fillna(0.0)
++    turnover_at_formation = 0.5 * (weights - prior_weights).abs().sum(axis=1)
++    cost_at_formation = turnover_at_formation * (cost_bps_one_way / 1e4) * 2  # two-way
++
++    turnover = turnover_at_formation.shift(1).reindex(dates).fillna(0.0)
++    cost = cost_at_formation.shift(1).reindex(dates).fillna(0.0)
++    net_ret = gross_ret - cost
++
++    return pd.DataFrame(
++        {"gross_ret": gross_ret, "turnover": turnover, "cost": cost, "net_ret": net_ret}
++    )
++
++
++# ------------------------------------------------------------- stats ---
++
++
++def perf_stats(returns: pd.Series, freq: int = 12) -> dict:
++    r = returns.dropna()
++    ann_ret = (1 + r).prod() ** (freq / len(r)) - 1
++    ann_vol = r.std(ddof=1) * np.sqrt(freq)
++    sharpe = r.mean() / r.std(ddof=1) * np.sqrt(freq) if r.std(ddof=1) > 0 else np.nan
++    curve = (1 + r).cumprod()
++    dd = curve / curve.cummax() - 1
++    max_dd = dd.min()
++    hit_rate = (r > 0).mean()
++
++    hac = sm.OLS(r.values, np.ones(len(r))).fit(cov_type="HAC", cov_kwds={"maxlags": 6})
++    t_stat = hac.tvalues[0]
++    p_value = hac.pvalues[0]
++
++    return {
++        "n_months": len(r),
++        "ann_return": ann_ret,
++        "ann_vol": ann_vol,
++        "sharpe": sharpe,
++        "max_drawdown": max_dd,
++        "hit_rate": hit_rate,
++        "mean_monthly_pct": r.mean() * 100,
++        "hac_t_stat": t_stat,
++        "hac_p_value": p_value,
++    }
++
++
++def market_model(returns: pd.Series, spy_ret: pd.Series) -> dict:
++    df = pd.concat([returns, spy_ret], axis=1, join="inner").dropna()
++    df.columns = ["strategy", "spy"]
++    X = sm.add_constant(df["spy"])
++    fit = sm.OLS(df["strategy"], X).fit(cov_type="HAC", cov_kwds={"maxlags": 6})
++    alpha_ann = fit.params["const"] * 12
++    return {
++        "alpha_monthly_pct": fit.params["const"] * 100,
++        "alpha_annualized_pct": alpha_ann * 100,
++        "alpha_t_stat": fit.tvalues["const"],
++        "alpha_p_value": fit.pvalues["const"],
++        "beta": fit.params["spy"],
++        "r_squared": fit.rsquared,
++    }
++
++
++def fmt_pct(x: float) -> str:
++    return f"{x * 100:6.2f}%"
++
++
++def print_stats_block(label: str, stats: dict) -> None:
++    print(f"  {label}")
++    print(f"    months               {stats['n_months']}")
++    print(f"    ann. return          {fmt_pct(stats['ann_return'])}")
++    print(f"    ann. volatility      {fmt_pct(stats['ann_vol'])}")
++    print(f"    Sharpe               {stats['sharpe']:.2f}")
++    print(f"    max drawdown         {fmt_pct(stats['max_drawdown'])}")
++    print(f"    hit rate             {fmt_pct(stats['hit_rate'])}")
++    print(f"    mean monthly return  {stats['mean_monthly_pct']:.3f}%")
++    print(
++        f"    HAC t-stat / p-value {stats['hac_t_stat']:.2f} / {stats['hac_p_value']:.3f}"
++        f"  (H0: mean monthly return = 0, Newey-West, 6 lags)"
++    )
++
++
++def main() -> int:
++    monthly_close = load_monthly_closes()
++    monthly_ret = monthly_close.pct_change()
++    eligibility = load_eligibility()
++    signal = momentum_signal(monthly_close)
++
++    spy_ret = monthly_ret["SPY"]
++
++    print("=" * 78)
++    print("PRIMARY SPEC: 12-1 month cross-sectional momentum, monthly rebalance,")
++    print(
++        f"long/short top-bottom {QUINTILE:.0%} quintile, equal-weighted, "
++        f"{COST_BPS_ONE_WAY:.0f}bps one-way costs"
++    )
++    print("=" * 78)
++
++    w_ls = build_weights(signal, eligibility)
++    bt_ls = run_backtest(w_ls, monthly_ret)
++
++    print(f"\nAvg monthly turnover (sum |Δw|/2): {bt_ls['turnover'].mean():.2f}")
++    print(f"Avg monthly cost drag:             {bt_ls['cost'].mean() * 100:.3f}%")
++
++    print("\n--- Long/short quintile momentum, GROSS of costs ---")
++    print_stats_block("gross", perf_stats(bt_ls["gross_ret"]))
++    print("\n--- Long/short quintile momentum, NET of costs ---")
++    print_stats_block("net", perf_stats(bt_ls["net_ret"]))
++
++    mm = market_model(bt_ls["net_ret"], spy_ret)
++    print("\n--- Market model: net strategy return regressed on SPY return ---")
++    print(f"    alpha (monthly)      {mm['alpha_monthly_pct']:.3f}%")
++    print(f"    alpha (annualized)   {mm['alpha_annualized_pct']:.2f}%")
++    print(f"    alpha HAC t / p      {mm['alpha_t_stat']:.2f} / {mm['alpha_p_value']:.3f}")
++    print(f"    beta to SPY          {mm['beta']:.2f}")
++    print(f"    R^2                  {mm['r_squared']:.3f}")
++
++    # ---------------------------------------------------------- robustness --
++    print("\n" + "=" * 78)
++    print("ROBUSTNESS CHECKS (reported as-is, not used to pick the primary spec)")
++    print("=" * 78)
++
++    print("\n[1] Sub-period stability (net of costs, long/short primary spec)")
++    for label, start, end in [
++        ("2008-01 .. 2016-12", "2008-01-01", "2016-12-31"),
++        ("2017-01 .. 2025-12", "2017-01-01", "2025-12-31"),
++    ]:
++        sub = bt_ls["net_ret"].loc[start:end]
++        s = perf_stats(sub)
++        print(
++            f"    {label}: n={s['n_months']:3d}  ann.ret={fmt_pct(s['ann_return'])}"
++            f"  Sharpe={s['sharpe']:5.2f}  HAC t={s['hac_t_stat']:5.2f}"
++        )
++
++    print("\n[2] Cost sensitivity (long/short primary spec, annualized net return & Sharpe)")
++    for bps in (0, 5, 10, 20, 30, 50):
++        bt = run_backtest(w_ls, monthly_ret, cost_bps_one_way=bps)
++        s = perf_stats(bt["net_ret"])
++        print(
++            f"    {bps:3.0f}bps one-way: ann.ret={fmt_pct(s['ann_return'])}  Sharpe={s['sharpe']:5.2f}"
++        )
++
++    print("\n[3] Long-only top-quintile variant vs. equal-weight-of-eligible-universe benchmark")
++    w_lo = build_weights_long_only(signal, eligibility)
++    bt_lo = run_backtest(w_lo, monthly_ret)
++    w_eq = build_weights_equal(signal, eligibility)
++    bt_eq = run_backtest(w_eq, monthly_ret, cost_bps_one_way=COST_BPS_ONE_WAY)
++    print_stats_block("long-only top quintile, net", perf_stats(bt_lo["net_ret"]))
++    print_stats_block("equal-weight benchmark, net", perf_stats(bt_eq["net_ret"]))
++    excess = (bt_lo["net_ret"] - bt_eq["net_ret"]).dropna()
++    excess_stats = perf_stats(excess)
++    print_stats_block("long-only minus equal-weight benchmark", excess_stats)
++
++    print("\n[4] Buy-and-hold SPY, for context")
++    print_stats_block("SPY buy & hold", perf_stats(spy_ret))
++
++    print(
++        "\n[5] Supplementary, different bet: time-series (absolute) momentum "
++        "- each symbol long/short its own sign(12-1 return), not ranked "
++        "against peers. Reported as-is."
++    )
++    w_ts = build_weights_timeseries(signal, eligibility)
++    bt_ts = run_backtest(w_ts, monthly_ret)
++    print_stats_block("time-series momentum, net", perf_stats(bt_ts["net_ret"]))
++
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())

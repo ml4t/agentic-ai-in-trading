@@ -3,36 +3,80 @@
 Materials for the opening workshop of QuantInsti's Algorithmic Trading
 Conference 2026, Thursday 24 September.
 
-**Status: under construction.** The notebook and the run artifacts land here
-once the runs behind them are captured and checked.
+A coding agent was given a research brief and a panel of daily ETF prices, and
+it wrote a complete predictive pipeline: data loading, features, a label, a
+model, an evaluation. This repository holds what it wrote, the transcript of the
+run that wrote it, and a notebook that runs the code and takes it apart.
 
-## What is here now
+## Start here
 
-A price panel and nothing built on top of it.
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ml4t/agentic-ai-in-trading/blob/main/notebooks/audit.ipynb)
+
+[**`notebooks/audit.ipynb`**](notebooks/audit.ipynb) runs start to finish in
+your browser in about three minutes. Nothing to install, no account beyond a
+Google login, no API key of any kind, and no agent runs on your side.
+
+It explains what the strategy is, reproduces the agent's headline result, then
+changes one line at a time and watches the result move.
+
+[**`CHECKLIST.md`**](CHECKLIST.md) is the takeaway: six checks to apply to any
+research component someone hands you, each one demonstrated in the notebook
+rather than asserted.
+
+## What is here
+
+| Path | What it holds |
+|---|---|
+| `notebooks/audit.ipynb` | The notebook. Paired with `audit.py` via jupytext |
+| `src/` | The five modules the agent wrote, **copied unedited** from `runs/instructed-precise/` |
+| `CHECKLIST.md` | Six checks, with what each one caught |
+| `briefs/` | The two research briefs handed to the agent, byte for byte |
+| `runs/` | Four captured runs: environment, transcript, diff, findings |
+| `scripts/fetch_prices.py` | Downloads the price panel from Yahoo Finance |
+
+### The four runs
+
+The same model, the same container, the same data, the same task. Two research
+briefs across two repository setups:
+
+| Run | Brief | Repository | Wall clock | Headline |
+|---|---|---|---|---|
+| `bare-loose` | one sentence | no instructions | 4m 02s | long-short Sharpe 0.06 gross, -0.02 net |
+| `instructed-loose` | one sentence | research standards in `AGENTS.md` | 6m 28s | mean IC 0.0436, naive t 6.90, corrected t 1.99 |
+| `bare-precise` | five numbered steps | no instructions | 10m 16s | mean IC 0.0285, naive t 6.10, corrected t 2.01 |
+| `instructed-precise` | five numbered steps | research standards in `AGENTS.md` | 4m 02s | mean IC 0.0282, naive t 6.104, corrected t 2.013 |
+
+All four answered the research question in the negative, which is the correct
+answer. They differ in how much evidence each one handed back. Each run
+directory carries its own `ENVIRONMENT.md` stating the model, the harness
+version, the container image, the home directory and the data checksums, so any
+two can be compared knowing exactly what differed.
+
+`src/` in this repository is `instructed-precise`'s output, unedited. Its
+docstrings and comments are the agent's own and are part of what the notebook
+audits.
+
+## Running it locally
+
+The price data is not shipped with this repository: the panel it came from may
+not be redistributed, so the fetch script downloads its own from Yahoo Finance.
 
 ```bash
-uv sync                              # pinned dependencies, Python 3.12
-uv run python scripts/fetch_prices.py
+uv sync
+uv run python scripts/fetch_prices.py     # writes data/, gitignored
 ```
 
-The fetch downloads daily OHLCV for 25 liquid US-listed ETFs from Yahoo
-Finance, 2007-01-01 to 2025-12-31, and writes `data/prices.parquet` and
-`data/eligibility.csv`. Both are gitignored: no price data ships with this
-repository. `data/README.md` describes the two files.
+Then open `notebooks/audit.ipynb` in Jupyter or VS Code. Python 3.12 and
+[uv](https://docs.astral.sh/uv/). To run the agent's pipeline on its own,
+exactly as the agent ran it:
 
-## What will be here
+```bash
+uv run python -m src.evaluate
+```
 
-- `notebooks/` - one notebook, opens in Colab, runs start to finish in a
-  browser. It fetches its own price data, so there is nothing to install and no
-  API key of any kind.
-- `briefs/` - the two specifications handed to the coding agent in the session,
-  exactly as given.
-- `runs/` - what the agent did with each one: the transcript, the code it wrote,
-  and the results.
-- `CHECKLIST.md` - what to check before trusting a research component an agent
-  wrote for you.
+## Where this continues
 
-## Requirements
-
-A browser and a Google account for the notebook. For a local checkout, Python
-3.12 and [uv](https://docs.astral.sh/uv/).
+The workshop covers one iteration of one stage of a research workflow. The
+[Machine Learning for Trading](https://github.com/stefan-jansen/machine-learning-for-trading)
+repository and book cover the whole of it, including the chapters on autonomous
+agents and on monitoring a model after it is deployed.

@@ -1,0 +1,227 @@
+diff --git a/analysis/model_panel.parquet b/analysis/model_panel.parquet
+new file mode 100644
+index 0000000..4e61293
+Binary files /dev/null and b/analysis/model_panel.parquet differ
+diff --git a/analysis/oof_predictions.parquet b/analysis/oof_predictions.parquet
+new file mode 100644
+index 0000000..d258adf
+Binary files /dev/null and b/analysis/oof_predictions.parquet differ
+diff --git a/analysis/panel_with_features.parquet b/analysis/panel_with_features.parquet
+new file mode 100644
+index 0000000..2d3a398
+Binary files /dev/null and b/analysis/panel_with_features.parquet differ
+diff --git a/analysis/step1_eligibility.py b/analysis/step1_eligibility.py
+new file mode 100644
+index 0000000..2df12db
+--- /dev/null
++++ b/analysis/step1_eligibility.py
+@@ -0,0 +1,27 @@
++"""Step 1: filter the price panel to eligible (symbol, date) pairs."""
++
++import pandas as pd
++
++prices = pd.read_parquet("data/prices.parquet")
++elig = pd.read_csv("data/eligibility.csv")
++
++prices = prices.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
++
++total_rows = len(prices)
++
++eligible_pairs = set(zip(elig["symbol"], elig["eligible_year"]))
++prices["year"] = prices["timestamp"].dt.year
++is_eligible = [
++    (sym, yr) in eligible_pairs
++    for sym, yr in zip(prices["symbol"], prices["year"])
++]
++prices["eligible"] = is_eligible
++
++survived = int(prices["eligible"].sum())
++print(f"Total (symbol, date) rows in panel: {total_rows:,}")
++print(f"Eligible rows: {survived:,}")
++print(f"Fraction surviving: {survived / total_rows:.4f}")
++
++# Sanity: per-symbol eligible row counts
++print()
++print(prices.groupby("symbol")["eligible"].agg(["sum", "count"]))
+diff --git a/analysis/step2_features.py b/analysis/step2_features.py
+new file mode 100644
+index 0000000..b846d16
+--- /dev/null
++++ b/analysis/step2_features.py
+@@ -0,0 +1,72 @@
++"""Steps 2-3: build eight features and the 21-session forward-return label,
++both computed on the full per-symbol history, then filter to eligible rows."""
++
++import numpy as np
++import pandas as pd
++from ml4t.engineer.features.momentum.rsi import rsi
++
++prices = pd.read_parquet("data/prices.parquet")
++elig = pd.read_csv("data/eligibility.csv")
++
++prices = prices.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
++
++# Features and label are computed on the FULL per-symbol history (not gated
++# by eligibility), because eligibility reflects universe membership, not data
++# availability, and because eligibility gaps would otherwise make a fixed
++# row-offset shift silently span more calendar time than intended for a
++# handful of symbols (HYG, LQD, VTV, VUG) that are missing early years.
++g = prices.groupby("symbol", group_keys=False)
++
++daily_ret = g["close"].pct_change()
++prices["daily_ret"] = daily_ret
++
++for k in (21, 63, 126, 252):
++    prices[f"mom_{k}"] = g["close"].apply(lambda s, k=k: s / s.shift(k) - 1)
++
++for k in (21, 63):
++    prices[f"vol_{k}"] = prices.groupby("symbol")["daily_ret"].transform(
++        lambda s, k=k: s.rolling(k).std()
++    )
++
++rsi_parts = []
++for sym, sub in prices.groupby("symbol", sort=False):
++    r = rsi(sub["close"].to_numpy(), period=14)
++    rsi_parts.append(pd.Series(r, index=sub.index))
++prices["rsi_14"] = pd.concat(rsi_parts).sort_index()
++
++# 21-session forward-return label. Looks forward on purpose (it's the
++# target); computed here, before the eligibility filter, so shift(-21)
++# always means 21 real trading sessions for that symbol.
++prices["fwd_ret_21"] = g["close"].apply(lambda s: s.shift(-21) / s - 1)
++
++# --- eligibility filter (from step 1) ---
++eligible_pairs = set(zip(elig["symbol"], elig["eligible_year"]))
++prices["year"] = prices["timestamp"].dt.year
++prices = prices[
++    [(sym, yr) in eligible_pairs for sym, yr in zip(prices["symbol"], prices["year"])]
++].copy()
++
++# Cross-sectional dollar-volume rank: computed *after* the eligibility filter,
++# so the cross-section on each date is the point-in-time investable universe,
++# not all 25 tickers regardless of whether they were tradable that year.
++prices["dollar_volume"] = prices["close"] * prices["volume"]
++prices["dv_rank"] = prices.groupby("timestamp")["dollar_volume"].rank(pct=True)
++
++feature_cols = [
++    "mom_21", "mom_63", "mom_126", "mom_252",
++    "vol_21", "vol_63",
++    "rsi_14",
++    "dv_rank",
++]
++
++print("NaN counts (features + label), before dropping warm-up/tail rows:")
++print(prices[[*feature_cols, "fwd_ret_21"]].isna().sum())
++
++n_before = len(prices)
++model_panel = prices.dropna(subset=[*feature_cols, "fwd_ret_21"]).copy()
++model_panel = model_panel.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
++print(f"\nRows before dropna: {n_before:,}  after dropna: {len(model_panel):,}")
++
++model_panel.to_parquet("analysis/model_panel.parquet")
++print("Saved analysis/model_panel.parquet, shape:", model_panel.shape)
++print(model_panel[["symbol", "timestamp", *feature_cols, "fwd_ret_21"]].head(3))
+diff --git a/analysis/step4_train.py b/analysis/step4_train.py
+new file mode 100644
+index 0000000..f02d205
+--- /dev/null
++++ b/analysis/step4_train.py
+@@ -0,0 +1,64 @@
++"""Step 4: train a LightGBM regressor with WalkForwardCV(label_horizon=21)."""
++
++import lightgbm as lgb
++import numpy as np
++import pandas as pd
++from ml4t.diagnostic.splitters import WalkForwardCV
++
++model_panel = pd.read_parquet("analysis/model_panel.parquet")
++model_panel = model_panel.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
++# Purging/embargo require timezone-aware timestamps; sessions are tz-naive
++# calendar dates, so UTC is an arbitrary but harmless choice here.
++model_panel["timestamp"] = model_panel["timestamp"].dt.tz_localize("UTC")
++
++feature_cols = [
++    "mom_21", "mom_63", "mom_126", "mom_252",
++    "vol_21", "vol_63",
++    "rsi_14",
++    "dv_rank",
++]
++label_col = "fwd_ret_21"
++
++X = model_panel[feature_cols]
++y = model_panel[label_col]
++
++# label_horizon=21 tells the splitter to purge training rows whose 21-session
++# forward-return window overlaps the validation window, and (via the NYSE
++# calendar default) to interpret "21" as trading sessions, not calendar days.
++cv = WalkForwardCV(n_splits=5, label_horizon=21, timestamp_col="timestamp", expanding=True)
++
++oof_records = []
++for fold_i, (train_idx, val_idx) in enumerate(cv.split(model_panel, y)):
++    model = lgb.LGBMRegressor(
++        n_estimators=200,
++        learning_rate=0.05,
++        num_leaves=31,
++        min_child_samples=50,
++        random_state=42,
++        verbosity=-1,
++    )
++    model.fit(X.iloc[train_idx], y.iloc[train_idx])
++    preds = model.predict(X.iloc[val_idx])
++
++    fold_df = model_panel.iloc[val_idx][["symbol", "timestamp", label_col]].copy()
++    fold_df["prediction"] = preds
++    fold_df["fold"] = fold_i
++    oof_records.append(fold_df)
++
++    train_span = (
++        model_panel.iloc[train_idx]["timestamp"].min(),
++        model_panel.iloc[train_idx]["timestamp"].max(),
++    )
++    val_span = (
++        model_panel.iloc[val_idx]["timestamp"].min(),
++        model_panel.iloc[val_idx]["timestamp"].max(),
++    )
++    print(
++        f"Fold {fold_i}: train n={len(train_idx):,} {train_span[0].date()}..{train_span[1].date()}  "
++        f"val n={len(val_idx):,} {val_span[0].date()}..{val_span[1].date()}"
++    )
++
++oof = pd.concat(oof_records, ignore_index=True)
++oof.to_parquet("analysis/oof_predictions.parquet")
++print("\nSaved analysis/oof_predictions.parquet, shape:", oof.shape)
++print(oof.head())
+diff --git a/analysis/step5_evaluate.py b/analysis/step5_evaluate.py
+new file mode 100644
+index 0000000..44a08ad
+--- /dev/null
++++ b/analysis/step5_evaluate.py
+@@ -0,0 +1,28 @@
++"""Step 5: evaluate OOF predictions with cross-sectional IC + HAC correction."""
++
++import pandas as pd
++from ml4t.diagnostic.metrics import cross_sectional_ic_series, compute_ic_hac_stats
++
++oof = pd.read_parquet("analysis/oof_predictions.parquet")
++
++ic_series = cross_sectional_ic_series(
++    oof, oof,
++    pred_col="prediction", ret_col="fwd_ret_21",
++    date_col="timestamp", entity_col="symbol",
++    method="spearman",
++)
++
++print(f"IC series: {len(ic_series)} dates, "
++      f"{ic_series['ic'].isna().sum()} undefined (< min_obs or all-tied)")
++print(ic_series.head())
++print()
++
++stats = compute_ic_hac_stats(ic_series, ic_col="ic", label_horizon=21)
++
++print(f"n periods:        {stats['n_periods']}")
++print(f"mean IC:          {stats['mean_ic']:.4f}")
++print(f"naive SE:         {stats['naive_se']:.5f}")
++print(f"HAC SE:           {stats['hac_se']:.5f}")
++print(f"naive t-stat:     {stats['naive_t_stat']:.2f}")
++print(f"HAC t-stat:       {stats['t_stat']:.2f}   (effective_lags={stats['effective_lags']})")
++print(f"HAC p-value:      {stats['p_value']:.4g}")

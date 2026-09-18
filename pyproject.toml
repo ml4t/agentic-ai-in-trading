@@ -7,6 +7,7 @@ dependencies = [
     "ml4t-diagnostic==0.1.5",
     "ml4t-engineer==0.1.4",
     "lightgbm==4.6.0",
+    "matplotlib==3.10.7",
     "pandas==2.3.3",
     "polars==1.35.2",
     "numpy==2.3.4",
@@ -17,7 +18,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff==0.14.5"]
+dev = [
+    "ruff==0.14.5",
+    "jupytext>=1.16",
+    "ipykernel>=6.29",
+    "nbclient>=0.10",
+]
 
 [tool.ruff]
 line-length = 100

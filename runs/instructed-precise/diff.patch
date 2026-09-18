@@ -1,0 +1,357 @@
+diff --git a/src/__init__.py b/src/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/data.py b/src/data.py
+new file mode 100644
+index 0000000..5056e81
+--- /dev/null
++++ b/src/data.py
+@@ -0,0 +1,43 @@
++"""Load prices and apply the point-in-time eligibility filter.
++
++See data/README.md: a (symbol, year) is eligible only if eligibility.csv has
++a row for it. The universe of 25 symbols was chosen in 2026 from ETFs liquid
++today, so this filter is what makes the panel point-in-time rather than
++survivorship-biased.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++
++def load_eligible_panel(
++    prices_path: str = "data/prices.parquet",
++    eligibility_path: str = "data/eligibility.csv",
++) -> pd.DataFrame:
++    """Return prices restricted to point-in-time eligible (symbol, year) rows."""
++    prices = pd.read_parquet(prices_path)
++    eligibility = pd.read_csv(eligibility_path)
++
++    prices = prices.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
++    prices["year"] = prices["timestamp"].dt.year
++
++    eligible_pairs = set(map(tuple, eligibility[["symbol", "eligible_year"]].to_numpy()))
++    is_eligible = [
++        (sym, yr) in eligible_pairs
++        for sym, yr in zip(prices["symbol"], prices["year"], strict=True)
++    ]
++
++    n_total = len(prices)
++    filtered = prices.loc[is_eligible].drop(columns="year").reset_index(drop=True)
++    n_kept = len(filtered)
++
++    print(
++        f"Point-in-time eligibility filter: {n_kept:,} / {n_total:,} rows survive "
++        f"({n_kept / n_total:.1%})."
++    )
++    return filtered
++
++
++if __name__ == "__main__":
++    load_eligible_panel()
+diff --git a/src/evaluate.py b/src/evaluate.py
+new file mode 100644
+index 0000000..10e540f
+--- /dev/null
++++ b/src/evaluate.py
+@@ -0,0 +1,52 @@
++"""Evaluate out-of-fold predictions: naive IC t-stat vs HAC-corrected t-stat.
++
++Why they differ: fwd_ret_21 is a 21-session forward return, so consecutive
++daily observations share up to 20 of their 21 return days. That overlap
++autocorrelates the daily cross-sectional IC series (an MA(20)-like process),
++which violates the i.i.d. assumption behind the naive t-statistic
++(mean_ic / (std_ic / sqrt(n))). The naive t-statistic effectively treats each
++overlapping day as an independent observation, so it understates the true
++standard error and overstates significance - often by a factor of two or
++three, per AGENTS.md. The HAC (Newey-West) t-statistic instead estimates the
++standard error from a covariance matrix that accounts for autocorrelation up
++to label_horizon - 1 lags, which is why compute_ic_hac_stats is called with
++label_horizon=21.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++from ml4t.diagnostic.metrics import compute_ic_hac_stats, cross_sectional_ic_series
++from ml4t.diagnostic.metrics.ic_inference import compute_ic_summary_stats
++from src.label import LABEL_HORIZON
++from src.model import build_dataset, run_walk_forward
++
++
++def evaluate(oof: pd.DataFrame) -> None:
++    ic_series = cross_sectional_ic_series(
++        predictions=oof,
++        returns=oof,
++        pred_col="prediction",
++        ret_col="fwd_ret_21",
++        date_col="timestamp",
++        entity_col="symbol",
++    )
++
++    naive = compute_ic_summary_stats(ic_series, ic_col="ic")
++    hac = compute_ic_hac_stats(ic_series, ic_col="ic", label_horizon=LABEL_HORIZON)
++
++    print(f"IC series: {naive['n_periods']} dates with a valid cross-sectional IC")
++    print(f"Mean IC: {naive['mean_ic']:.4f}")
++    print(f"Naive t-stat:          {naive['t_stat']:.3f}  (p={naive['p_value']:.4f})")
++    print(
++        f"HAC-corrected t-stat:  {hac['t_stat']:.3f}  (p={hac['p_value']:.4f}, "
++        f"lags={hac['effective_lags']})"
++    )
++    print(f"Naive / HAC ratio: {naive['t_stat'] / hac['t_stat']:.2f}x")
++
++
++if __name__ == "__main__":
++    dataset = build_dataset()
++    oof = run_walk_forward(dataset)
++    evaluate(oof)
+diff --git a/src/features.py b/src/features.py
+new file mode 100644
+index 0000000..0a7dbb2
+--- /dev/null
++++ b/src/features.py
+@@ -0,0 +1,80 @@
++"""Eight features, each computed within a symbol from data up to and including
++the feature date, plus one cross-sectional transform ranked within a date only.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++from ml4t.engineer.features.momentum.rsi import rsi
++
++MOMENTUM_WINDOWS = (21, 63, 126, 252)
++VOL_WINDOWS = (21, 63)
++RSI_PERIOD = 14
++
++
++def _symbol_features(g: pd.DataFrame) -> pd.DataFrame:
++    """Compute the seven within-symbol features for one symbol's rows, in date order."""
++    g = g.sort_values("timestamp")
++    close = g["close"]
++    daily_return = close.pct_change()
++
++    out = pd.DataFrame(index=g.index)
++    for w in MOMENTUM_WINDOWS:
++        # momentum_w(t) = close(t) / close(t - w) - 1: uses only close prices at
++        # or before t, since t - w < t.
++        out[f"mom_{w}"] = close / close.shift(w) - 1
++
++    for w in VOL_WINDOWS:
++        # trailing (right-aligned) rolling std of daily returns ending at t.
++        out[f"vol_{w}"] = daily_return.rolling(window=w, min_periods=w).std()
++
++    # Wilder's smoothing is recursive from the start of the (gap-free) close
++    # series, so rsi(t) depends only on close[..t].
++    out["rsi_14"] = rsi(close.to_numpy(), period=RSI_PERIOD)
++
++    return out
++
++
++def build_features(panel: pd.DataFrame) -> pd.DataFrame:
++    """Add eight feature columns to the eligible panel.
++
++    Seven are computed independently within each symbol (no cross-symbol or
++    cross-date information). The eighth, dollar-volume rank, is a cross-
++    sectional transform: for each date, rank symbols by that date's own
++    dollar volume only, never mixing dates.
++    """
++    df = panel.copy()
++
++    within_symbol = df.groupby("symbol", group_keys=False).apply(
++        _symbol_features, include_groups=False
++    )
++    df = df.join(within_symbol)
++
++    dollar_volume = df["close"] * df["volume"]
++    # rank(pct=True) within each date's cross-section only - no other date's
++    # rows enter the computation for a given date.
++    df["dollar_volume_rank"] = dollar_volume.groupby(df["timestamp"]).rank(pct=True)
++
++    return df
++
++
++FEATURE_COLUMNS = [
++    "mom_21",
++    "mom_63",
++    "mom_126",
++    "mom_252",
++    "vol_21",
++    "vol_63",
++    "rsi_14",
++    "dollar_volume_rank",
++]
++
++
++if __name__ == "__main__":
++    from src.data import load_eligible_panel
++
++    panel = load_eligible_panel()
++    featured = build_features(panel)
++    print(featured[["symbol", "timestamp", *FEATURE_COLUMNS]].tail())
++    print(featured[FEATURE_COLUMNS].isna().mean())
+diff --git a/src/label.py b/src/label.py
+new file mode 100644
+index 0000000..5d9ee3f
+--- /dev/null
++++ b/src/label.py
+@@ -0,0 +1,60 @@
++"""21-session forward return label.
++
++The line that decides direction is the `shift(-LABEL_HORIZON)` below: a
++*negative* shift pulls a value from `LABEL_HORIZON` rows *ahead* in the
++(date-sorted, within-symbol) frame up to the current row - i.e. the future
++close - not a value from behind it. `shift(+n)` would instead pull the past
++and silently produce a backward-looking label with no error.
++
++label(t) = close(t + h) / close(t) - 1, so it is only defined through
++(n - h) of each symbol's rows; the last h rows of each symbol get NaN.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++
++LABEL_HORIZON = 21
++
++
++def _symbol_label(g: pd.DataFrame) -> pd.Series:
++    g = g.sort_values("timestamp")
++    close = g["close"]
++    return close.shift(-LABEL_HORIZON) / close - 1
++
++
++def build_label(panel: pd.DataFrame) -> pd.DataFrame:
++    df = panel.copy()
++    df["fwd_ret_21"] = df.groupby("symbol", group_keys=False).apply(
++        _symbol_label, include_groups=False
++    )
++    return df
++
++
++def _worked_example(panel: pd.DataFrame, symbol: str = "SPY") -> None:
++    """Print two dates' worth of close prices against their labels, by hand."""
++    g = panel.loc[panel["symbol"] == symbol].sort_values("timestamp").reset_index(drop=True)
++    g["fwd_ret_21"] = _symbol_label(g)
++
++    for i in (100, 500):
++        t0 = g.loc[i, "timestamp"]
++        c0 = g.loc[i, "close"]
++        t1 = g.loc[i + LABEL_HORIZON, "timestamp"]
++        c1 = g.loc[i + LABEL_HORIZON, "close"]
++        label = g.loc[i, "fwd_ret_21"]
++        hand_computed = c1 / c0 - 1
++        print(
++            f"{symbol} row {i}: date {t0.date()} close {c0:.4f}  ->  "
++            f"row {i + LABEL_HORIZON}: date {t1.date()} close {c1:.4f}  "
++            f"label={label:.6f}  hand-computed={hand_computed:.6f}  "
++            f"match={abs(label - hand_computed) < 1e-12}"
++        )
++        assert t1 > t0, "label date must be strictly after the feature date"
++        assert abs(label - hand_computed) < 1e-12
++
++
++if __name__ == "__main__":
++    from src.data import load_eligible_panel
++
++    panel = load_eligible_panel()
++    _worked_example(panel)
+diff --git a/src/model.py b/src/model.py
+new file mode 100644
+index 0000000..503b567
+--- /dev/null
++++ b/src/model.py
+@@ -0,0 +1,89 @@
++"""Train a LightGBM regressor on the eight features with walk-forward CV.
++
++Why not a random split: the label is a 21-session forward return, so a
++training row's label window overlaps the label windows of the 20 sessions on
++either side of it. A shuffled split (train_test_split, KFold, cross_val_score
++with shuffle=True) would routinely place a training row a few sessions away
++from a test row on the other side of the boundary - their labels share most
++of their realized price path. The model can then partly "predict" the test
++label by having memorized the overlapping training label, which is not
++predictive skill. WalkForwardCV keeps all training data strictly before
++validation data in time and additionally purges the label_horizon=21 training
++rows immediately preceding each validation fold, so no training label's
++window reaches into the validation period.
++"""
++
++from __future__ import annotations
++
++import lightgbm as lgb
++import pandas as pd
++
++from ml4t.diagnostic.splitters import WalkForwardCV
++from src.data import load_eligible_panel
++from src.features import FEATURE_COLUMNS, build_features
++from src.label import LABEL_HORIZON, build_label
++
++N_SPLITS = 5
++
++
++def build_dataset() -> pd.DataFrame:
++    panel = load_eligible_panel()
++    panel = build_features(panel)
++    panel = build_label(panel)
++    panel = panel.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
++    return panel
++
++
++def run_walk_forward(df: pd.DataFrame) -> pd.DataFrame:
++    """Fit/predict across walk-forward folds; return out-of-fold predictions."""
++    model_df = df.dropna(subset=[*FEATURE_COLUMNS, "fwd_ret_21"]).reset_index(drop=True)
++    X = model_df[FEATURE_COLUMNS]
++    y = model_df["fwd_ret_21"]
++    X_indexed = X.set_index(pd.DatetimeIndex(model_df["timestamp"]).tz_localize("UTC"))
++
++    cv = WalkForwardCV(
++        n_splits=N_SPLITS,
++        label_horizon=LABEL_HORIZON,
++        expanding=True,
++        consecutive=True,
++    )
++
++    oof_rows = []
++    for fold_i, (train_idx, val_idx) in enumerate(cv.split(X_indexed)):
++        model = lgb.LGBMRegressor(
++            n_estimators=300,
++            learning_rate=0.05,
++            num_leaves=31,
++            random_state=42,
++            verbosity=-1,
++        )
++        model.fit(X.iloc[train_idx], y.iloc[train_idx])
++        preds = model.predict(X.iloc[val_idx])
++
++        fold_out = model_df.iloc[val_idx][["symbol", "timestamp", "fwd_ret_21"]].copy()
++        fold_out["prediction"] = preds
++        fold_out["fold"] = fold_i
++        oof_rows.append(fold_out)
++
++        train_span = (
++            model_df.iloc[train_idx]["timestamp"].min(),
++            model_df.iloc[train_idx]["timestamp"].max(),
++        )
++        val_span = (
++            model_df.iloc[val_idx]["timestamp"].min(),
++            model_df.iloc[val_idx]["timestamp"].max(),
++        )
++        print(
++            f"fold {fold_i}: train {len(train_idx):,} rows [{train_span[0].date()} .. "
++            f"{train_span[1].date()}], val {len(val_idx):,} rows [{val_span[0].date()} .. "
++            f"{val_span[1].date()}]"
++        )
++
++    return pd.concat(oof_rows, ignore_index=True)
++
++
++if __name__ == "__main__":
++    dataset = build_dataset()
++    oof = run_walk_forward(dataset)
++    print(oof.head())
++    print(f"Total out-of-fold predictions: {len(oof):,}")
