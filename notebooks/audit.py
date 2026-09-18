@@ -103,9 +103,11 @@ prices.head()
 # (IC). Average it over every date in the sample and you have one number that
 # says whether the ranking was any good.
 #
-# For scale: a mean IC of 0.03 is a weak signal, and weak is normal. Published
-# equity signals routinely live between 0.02 and 0.05. The question is never
-# whether the number is big, it is whether the number is real.
+# An IC of 0.03 is not a 3% return. It is a correlation between today's ranking
+# and what happened afterwards, on a scale where 1.0 would mean the ranking was
+# perfect every single time. 0.03 is a weak relationship, and weak is normal:
+# published equity signals routinely live between 0.02 and 0.05. The question is
+# never whether the number is big, it is whether the number is real.
 
 # %%
 spy = prices[prices["symbol"] == "SPY"].set_index("timestamp")
@@ -200,7 +202,14 @@ evaluate(oof)
 # %% [markdown]
 # ## 4. Four checks, one line each
 #
-# Every check below changes exactly one thing and reruns **the agent's own**
+# Three questions carry all of this, and each check below answers one of them:
+#
+# 1. **What are you predicting?** The label. Check 1.
+# 2. **What was knowable when?** The timeline. Checks 2 and 3.
+# 3. **Does the evidence say what you think it says?** The statistic and the
+#    sample. Check 4, and section 5.
+#
+# Every check changes exactly one thing and reruns **the agent's own**
 # `run_walk_forward`. Same features, same label horizon, same model, same
 # number of folds. Whatever moves, moves because of the single change.
 #
@@ -313,6 +322,11 @@ results["shuffled split"]
 # large enough to be exciting, small enough to be believed, and it comes with a
 # t-statistic that no reviewer would question. A shuffled split on a time series
 # is the most common way a research result turns out to be nothing.
+#
+# The name matters: this is *temporal leakage*, not overfitting. The model is
+# not too complex for the data. It was scored on dates whose outcomes it had
+# already been shown. Overfitting is fixed with fewer parameters or more data;
+# this is fixed by respecting the clock, and nothing else fixes it.
 
 # %% [markdown]
 # ### Check 3. Does the order of filtering and labelling matter?
@@ -580,24 +594,52 @@ cadence.round(4)
 # %% [markdown]
 # ## 7. The checklist
 #
-# `CHECKLIST.md` in this repository is the full version. The short one, all six
-# items demonstrated above rather than asserted:
+# `CHECKLIST.md` in this repository is the full version, with what each item
+# caught. Six checks under three questions, all of them demonstrated above
+# rather than asserted:
+#
+# **What are you predicting?**
 #
 # 1. **Say what the filter removed.** A retention percentage, printed. `98.4%`
 #    here.
 # 2. **Prove the label's direction on a worked example.** Two real dates, a
 #    hand-computed value, an equality check. Never an assertion in a comment.
+#
+# **What was knowable when?**
+#
 # 3. **Never a shuffled split on overlapping labels.** Walk forward, and purge
 #    the label horizon at every boundary.
-# 4. **Report the corrected statistic beside the naive one, always together.**
+# 4. **Check the claims in the comments, not just the code.** The agent's
+#    reasoning about gaps was correct in shape and false about this dataset.
+#
+# **Does the evidence say what you think it says?**
+#
+# 5. **Report the corrected statistic beside the naive one, always together.**
 #    A naive t-statistic published alone is a false positive waiting to be
 #    acted on.
-# 5. **Break the headline down until it stops holding.** By year, by regime, by
+# 6. **Break the headline down until it stops holding.** By year, by regime, by
 #    symbol. Then say what the breakdown can and cannot establish.
-# 6. **Check the claims in the comments, not just the code.** The agent's
-#    reasoning about gaps was correct in shape and false about this dataset.
 #
 # None of these is specific to agents. They are what you check in any research
 # result, including your own. What changes with an agent is that the code
 # arrives faster than you can read it, and the explanation attached to it is
 # fluent enough to be convincing whether or not it is true.
+
+# %% [markdown]
+# ### What a team does with this on Monday
+#
+# Each check above is a few lines of test that then never has to be remembered
+# again. The middle column is the one that pays.
+#
+# | Delegate to the agent | Automate as a test | The human owns |
+# |---|---|---|
+# | Writing the pipeline | Label direction, on a worked example | The research question |
+# | Implementing features | Fold boundaries and purge width | What the result has to clear |
+# | Running the experiment | Retention and sample assertions | The economic reading |
+# | Producing diagnostics | Both statistics reported together | The capital decision |
+# | Drafting the write-up | Reproducing the headline from a clean checkout | Every exception to the above |
+#
+# The agent wrote this entire study in four minutes, and it was sound. What it
+# did not do was decide what question to ask, what the result had to clear, or
+# what any of it was worth. The agent can write the research. You still own the
+# proof.
